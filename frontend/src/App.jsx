@@ -1,0 +1,587 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import SprawlField from "./SprawlField.jsx";
+import ResultsCanvas from "./ResultsCanvas.jsx";
+
+// easter egg: typing exactly this word into the textarea swaps in a stack
+// of deliberately absurd "initiatives" instead of a real example
+const CHAOS_TRIGGER = "chaos";
+const CHAOS_STACK = [
+  "blockchain-powered stapler tracker",
+  "AI that reviews the other AI's commits",
+  "quantum-ready email signature generator",
+  "sentiment analysis for the office plant",
+  "roomba fleet optimization engine",
+  "GPT wrapper for the GPT wrapper",
+  "excel macro rebranded as machine learning",
+];
+
+// easter egg: placeholder escalates into nonsense if the textarea sits
+// empty long enough — reward for anyone lingering on the page
+const PLACEHOLDER_VARIANTS = [
+  "fraud detection model\nKYC document parser\ncustomer support chatbot\ninvoice OCR\n(one initiative per line)",
+  "blockchain for the water cooler\nAI-powered stapler tracker\nsentiment analysis for the break room\n(one initiative per line)",
+  "a chatbot for the chatbot\nGPT wrapper for another GPT wrapper\nquantum-ready expense report scanner\n(one initiative per line)",
+  "\"innovation\" (undefined scope, Q3)\nroomba fleet optimization engine\nexcel macro rebranded as machine learning\n(one initiative per line)",
+];
+
+const CONFETTI_COLORS = ["#e5342a", "#ececec", "#b47814"];
+function spawnConfetti(x, y) {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (let i = 0; i < 26; i++) {
+    const el = document.createElement("span");
+    el.className = "confetti-bit";
+    const dx = (Math.random() - 0.5) * 240;
+    const dy = (Math.random() - 0.5) * 240 - 70;
+    const rot = Math.random() * 720 - 360;
+    el.style.setProperty("--dx", `${dx}px`);
+    el.style.setProperty("--dy", `${dy}px`);
+    el.style.setProperty("--rot", `${rot}deg`);
+    el.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    document.body.appendChild(el);
+    el.addEventListener("animationend", () => el.remove());
+  }
+}
+
+const STACKS = {
+  "Banking stack": {
+    meta: "6 SYSTEMS · BFSI",
+    lines: [
+      "fraud detection model",
+      "KYC document parser",
+      "loan underwriting assistant",
+      "customer support chatbot",
+      "AML transaction monitoring",
+      "analytics copilot",
+    ],
+  },
+  "Insurance stack": {
+    meta: "6 SYSTEMS · P&C",
+    lines: [
+      "claims intake document parser",
+      "claims fraud scoring model",
+      "policyholder support chatbot",
+      "AML & sanctions screening",
+      "customer churn prediction model",
+      "claims analytics dashboard",
+    ],
+  },
+  "Retail stack": {
+    meta: "7 SYSTEMS · COMMERCE",
+    lines: [
+      "product recommendation engine",
+      "demand forecasting model",
+      "dynamic pricing engine",
+      "customer support chatbot",
+      "returns fraud detection model",
+      "marketing content generator",
+      "sales analytics copilot",
+    ],
+  },
+};
+
+// client-side mirror of the rules engine, for live domain chips + field clusters
+// (the first two are an easter egg — checked before the real taxonomy)
+const HINTS = [
+  [/\bskynet\b/i, "self-aware (uh oh)"],
+  [/\broomba\b/i, "physical + ai (bold)"],
+  [/\bfraud\b|anomaly|risk score|risk model/i, "fraud"],
+  [/\bkyc\b|identity|onboard/i, "identity"],
+  [/underwrit|lending|\bloan\b/i, "lending"],
+  [/chatbot|customer support|contact center|support/i, "support"],
+  [/\baml\b|compliance|monitoring|sanction/i, "compliance"],
+  [/analytic|copilot|warehouse|\bbi\b|reporting/i, "analytics"],
+  [/claim/i, "claims"],
+  [/\bocr\b|document pars|invoice|extract/i, "documents"],
+  [/recommend|personaliz/i, "marketing"],
+  [/churn|retention/i, "marketing"],
+  [/marketing|content gen|copywrit|campaign/i, "marketing"],
+  [/forecast|inventory|demand|pricing|\bprice\b/i, "operations"],
+];
+
+function domainOf(label) {
+  const hit = HINTS.find(([re]) => re.test(label));
+  return hit ? hit[1] : null;
+}
+
+function detectDomains(lines) {
+  const found = [];
+  let unknown = 0;
+  for (const l of lines) {
+    const d = domainOf(l);
+    if (d) { if (!found.includes(d)) found.push(d); }
+    else unknown++;
+  }
+  return { domains: found, unknown };
+}
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const SEV_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+function evidenceSystems(ev) {
+  if (!ev) return [];
+  if (ev.from_systems || ev.to_systems)
+    return [...(ev.from_systems || []), ...(ev.to_systems || [])];
+  if (ev.systems) return ev.systems.map((s) => (typeof s === "string" ? s : s.label));
+  return [];
+}
+
+/* ═════════════════════ RESULTS: consequence text ═════════════════════ */
+
+function domainBlast(graph, domain) {
+  return graph.nodes.filter((n) => n.domain === domain).length;
+}
+
+// the worst gap: HIGH first, widest downstream blast radius, fraud-adjacent wins ties
+function rankWorstEdge(graph) {
+  let worst = null, best = -1;
+  graph.missing_edges.forEach((e, i) => {
+    const blast = domainBlast(graph, e.to);
+    const score = (e.severity === "HIGH" ? 100 : 0) + blast * 10 +
+      (e.from === "fraud" || e.to === "fraud" ? 5 : 0) - i * 0.01;
+    if (score > best) { best = score; worst = e; }
+  });
+  return worst;
+}
+
+function worstEdgeForDomain(graph, domain) {
+  const touching = graph.missing_edges.filter((e) => e.from === domain || e.to === domain);
+  if (!touching.length) return null;
+  return [...touching].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))[0];
+}
+
+// display-only casing helpers — never applied to values used for matching
+// (system_label lookups, domain keys), only to text as it's rendered
+function toTitleCase(s) {
+  return s ? s.replace(/\b\w/g, (c) => c.toUpperCase()) : s;
+}
+function toSentence(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+function failureModeFor(diag, edge) {
+  if (!edge) return "These systems make decisions without each other's signals.";
+  const f = diag.findings.find((x) => x.type === "MISSING" && x.evidence &&
+    x.evidence.from_domain === edge.from && x.evidence.to_domain === edge.to);
+  const line = f?.evidence?.reasoning?.find((r) => r.startsWith("Failure mode:"));
+  if (!line) return "These systems make decisions without each other's signals.";
+  return line.replace("Failure mode: ", "").replace(/^./, (c) => c.toUpperCase()).replace(/\.?$/, ".");
+}
+
+// diagnostic (right panel): hover previews live, falls back to the pinned
+// selection, falls back to the portfolio's single worst gap
+function resolveDiagnostic(diag, info, defaultEdge) {
+  if (!info)
+    return defaultEdge
+      ? { label: `${defaultEdge.from.toUpperCase()} → ${defaultEdge.to.toUpperCase()} · ${defaultEdge.severity}`, text: failureModeFor(diag, defaultEdge), active: false }
+      : { label: "PORTFOLIO", text: failureModeFor(diag, defaultEdge), active: false };
+  if (info.kind === "edge") {
+    return {
+      label: `${info.edge.from.toUpperCase()} → ${info.edge.to.toUpperCase()} · ${info.edge.severity}`,
+      text: failureModeFor(diag, info.edge),
+      active: true,
+    };
+  }
+  const e = worstEdgeForDomain(diag.graph, info.domain);
+  return e
+    ? { label: `${info.domain.toUpperCase()} · ${e.severity}`, text: failureModeFor(diag, e), active: true }
+    : { label: info.domain.toUpperCase(), text: "No missing connections touch this system directly.", active: true };
+}
+
+// audit (left panel): only updates on click/selection, so it stays put
+// while the user casually hovers elsewhere — the pinned explanation
+function findingForEdge(diag, edge) {
+  return diag.findings.find((x) => x.type === "MISSING" && x.evidence &&
+    x.evidence.from_domain === edge.from && x.evidence.to_domain === edge.to);
+}
+function resolveAudit(diag, selected, defaultEdge) {
+  const edge = selected?.kind === "edge" ? selected.edge : !selected ? defaultEdge : null;
+  if (edge) {
+    const f = findingForEdge(diag, edge);
+    return {
+      kind: "edge",
+      title: f?.title || `No live connection between ${toTitleCase(edge.from)} and ${toTitleCase(edge.to)}.`,
+      sub: f ? `${f.evidence.severity} · CONFIDENCE ${f.evidence.confidence.toFixed(2)}` : "",
+      trace: f?.evidence?.reasoning || [],
+    };
+  }
+  const item = diag.initiatives.find((i) => i.system_label === selected.label);
+  const findings = diag.findings.filter((f) => evidenceSystems(f.evidence).includes(selected.label));
+  return {
+    kind: "node",
+    title: toTitleCase(selected.label),
+    sub: item?.domain
+      ? `${item.domain.toUpperCase()} · ${item.capability} · matched '${item.matched_on || "semantic"}' · by ${item.classified_by}`
+      : "UNCLASSIFIED — no rule matched, no LLM available",
+    findings,
+  };
+}
+const FINDING_ICON = { MISSING: "●", DUPLICATED: "▲", SHARED: "▲" };
+
+// cursor-reactive panel glow — set directly on the DOM node rather than via
+// React state, so tracking the mouse doesn't trigger a re-render per pixel
+function handlePanelMove(e) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+  el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+}
+function handlePanelEnter(e) { e.currentTarget.classList.add("glow-on"); }
+function handlePanelLeave(e) { e.currentTarget.classList.remove("glow-on"); }
+
+/* ═══════════════════════════ APP ═══════════════════════════ */
+
+const MAP_STEPS = [
+  "parsing initiatives",
+  "clustering by problem domain",
+  "checking capability overlap",
+  "tracing shared data entities",
+  "searching for live connections between systems",
+  "rendering fragmentation map",
+];
+
+const BOOKING_URL = "https://outlook.office.com/bookwithme/user/c3aec71cb9e040ff98f5edffaa621e24@kaaratech.com/meetingtype/dNDMrCLLMEeGzctgkDWr-g2?anonymous&ismsaljsauthenabled&ep=mCardFromTile";
+const SHEET_WEBHOOK_URL = import.meta.env.VITE_SHEET_WEBHOOK_URL || "";
+
+export default function App() {
+  const [screen, setScreen] = useState("paste"); // paste | report
+  const [text, setText] = useState("");
+  const [phase, setPhase] = useState("chaos");
+  const [mapping, setMapping] = useState(false);
+  const [diag, setDiag] = useState(null);
+  const [menu, setMenu] = useState(false);
+  const [hoverInfo, setHoverInfo] = useState(null);  // {kind:'node'|'edge', domain?|edge?} — live hover preview
+  const [selected, setSelected] = useState(null);    // {kind:'node',domain,label} | {kind:'edge',edge} — pinned by click
+  const [sendForm, setSendForm] = useState({ open: false, email: "", company: "", sending: false, sent: false, error: "" });
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [slowJoke, setSlowJoke] = useState(false);
+  const taRef = useRef(null);
+  const gutRef = useRef(null);
+  const brandClicks = useRef({ count: 0, last: 0 });
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const { domains, unknown } = detectDomains(lines);
+  const islands = Math.max(domains.length, 1);
+
+  // hooks must run unconditionally — computed here, before the paste-screen's
+  // early return, even though it's only meaningful once `diag` exists
+  const defaultEdge = useMemo(() => (diag ? rankWorstEdge(diag.graph) : null), [diag]);
+
+  // easter egg: cycle the empty-textarea placeholder into nonsense the
+  // longer someone lingers without typing anything
+  useEffect(() => {
+    if (text) return;
+    const id = setInterval(() => {
+      setPlaceholderIdx((i) => (i + 1) % PLACEHOLDER_VARIANTS.length);
+    }, 6000);
+    return () => clearInterval(id);
+  }, [text]);
+
+  // easter egg: if mapping runs longer than the choreographed ~2.9s, the
+  // last log line swaps to a wry aside instead of just... still loading
+  useEffect(() => {
+    if (!mapping) { setSlowJoke(false); return; }
+    const id = setTimeout(() => setSlowJoke(true), 3600);
+    return () => clearTimeout(id);
+  }, [mapping]);
+
+  function handleTextChange(e) {
+    const v = e.target.value;
+    if (v.trim().toLowerCase() === CHAOS_TRIGGER) {
+      setText(CHAOS_STACK.join("\n"));
+      return;
+    }
+    setText(v);
+  }
+
+  // easter egg: five quick clicks on the wordmark pops a confetti burst
+  function handleBrandClick(e) {
+    const now = Date.now();
+    const b = brandClicks.current;
+    b.count = now - b.last < 900 ? b.count + 1 : 1;
+    b.last = now;
+    if (b.count >= 5) {
+      b.count = 0;
+      const r = e.currentTarget.getBoundingClientRect();
+      spawnConfetti(r.left + r.width / 2, r.top + r.height / 2);
+    }
+  }
+
+  async function run() {
+    if (!lines.length || mapping) return;
+    setMenu(false);
+    setPhase("mapped");
+    setMapping(true);
+    const req = fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lines }),
+    }).then((r) => r.json()).catch(() => null);
+    const [data] = await Promise.all([req, delay(2900)]);
+    if (data) {
+      setDiag(data);
+      setHoverInfo(null);
+      setSelected(null);
+      setSendForm({ open: false, email: "", company: "", sending: false, sent: false });
+      setScreen("report");
+    }
+    setMapping(false);
+    setPhase("chaos");
+  }
+
+  async function submitSendMap(e) {
+    e.preventDefault();
+    if (sendForm.sending) return;
+    setSendForm((f) => ({ ...f, sending: true, error: "" }));
+
+    // fire-and-forget: Apps Script web apps don't return CORS headers for
+    // cross-origin reads, so no-cors + text/plain avoids a failed preflight.
+    // The response is opaque either way, so this can't affect the
+    // success/failure state below — /api/team-brief is the source of truth
+    // for that, since we can actually read its response.
+    if (SHEET_WEBHOOK_URL) {
+      fetch(SHEET_WEBHOOK_URL, {
+        method: "POST", mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          Email: sendForm.email,
+          Company: sendForm.company,
+          Source: "AI Sprawl Map",
+          "Diagnostic ID": diag.diagnostic_id,
+          Timestamp: new Date().toISOString(),
+        }),
+      }).catch((err) => console.warn("Sheet webhook failed:", err));
+    } else {
+      console.warn("VITE_SHEET_WEBHOOK_URL is not set — lead wasn't logged to the sheet. See google-apps-script/sheet-webhook.gs.");
+    }
+
+    try {
+      const res = await fetch("/api/team-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diagnostic_id: diag.diagnostic_id, work_email: sendForm.email }),
+      });
+      if (!res.ok) throw new Error(`team-brief returned ${res.status}`);
+      setSendForm((f) => ({ ...f, sending: false, sent: true, open: false }));
+    } catch (err) {
+      console.warn("Send map failed:", err);
+      setSendForm((f) => ({ ...f, sending: false, error: "Couldn't send that — check the backend is running and try again." }));
+    }
+  }
+
+  function onKey(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run();
+  }
+
+  if (screen === "paste")
+    return (
+      <main className="hero" data-mapping={mapping ? "true" : "false"}>
+        <SprawlField className="field" initiatives={lines} categoryOf={domainOf}
+          phase={mapping ? "mapped" : phase} />
+        <div className="field-veil" aria-hidden="true" />
+
+        <header className="hero-bar">
+          <div className="shell hero-bar-in">
+            <span className="wordmark"><span className="brand" onClick={handleBrandClick}>Kaara</span> AI SPRAWL MAP</span>
+            <span className="badge">FREE · 90 SECONDS · NO SIGNUP</span>
+          </div>
+        </header>
+
+        <div className="shell hero-grid">
+          <section className="hero-copy">
+            <h1>You have more AI projects than you think.</h1>
+            <p className="sub">Do any of them know about each other?</p>
+            <p className="hint">
+              Paste every AI, automation, and data initiative you can think of, one per line.
+              We'll map the whole portfolio at once.
+            </p>
+          </section>
+
+          <section className="hero-panel" aria-label="Your initiatives"
+            onMouseMove={handlePanelMove} onMouseEnter={handlePanelEnter} onMouseLeave={handlePanelLeave}>
+            <div className="editor">
+              <div className="editor-top">
+                <span className="tl" aria-hidden="true"><i /><i /><i /></span>
+                <span className="fname">initiatives.txt</span>
+                <span className="ecount">{lines.length} LINES</span>
+              </div>
+              <div className="editor-body">
+                <div className="gutter" ref={gutRef} aria-hidden="true">
+                  {Array.from({ length: Math.max(lines.length ? text.split("\n").length : 0, 13) }).map((_, i) => (
+                    <div key={i}>{String(i + 1).padStart(2, "0")}</div>
+                  ))}
+                </div>
+                <textarea
+                  ref={taRef}
+                  value={text}
+                  onChange={handleTextChange}
+                  onKeyDown={onKey}
+                  onScroll={() => { if (gutRef.current) gutRef.current.scrollTop = taRef.current.scrollTop; }}
+                  spellCheck="false"
+                  disabled={mapping}
+                  aria-label="AI, automation, and data initiatives, one per line"
+                  placeholder={PLACEHOLDER_VARIANTS[placeholderIdx]}
+                />
+              </div>
+              <div className="editor-status">
+                <div className="chips">
+                  {domains.map((d) => <span className="chip" key={d}>{d.toUpperCase()}</span>)}
+                  {unknown > 0 && <span className="chip dim">{unknown} UNCLASSIFIED → LLM</span>}
+                  {!lines.length && <span className="chip dim">DOMAINS DETECTED LIVE AS YOU TYPE</span>}
+                </div>
+                <span className="kbd-hint">CTRL + ↵ TO MAP</span>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="menu-anchor">
+                <button className="ghost" aria-haspopup="true" aria-expanded={menu}
+                  onClick={() => setMenu(!menu)}>
+                  Load an example stack {menu ? "▴" : "▾"}
+                </button>
+                {menu && (
+                  <div className="menu" role="menu">
+                    {Object.entries(STACKS).map(([name, s]) => (
+                      <button key={name} role="menuitem"
+                        onClick={() => { setText(s.lines.join("\n")); setMenu(false); }}>
+                        <span>{name}</span>
+                        <span className="menu-meta">{s.meta}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className="lines">{lines.length} LINES · ~{Math.max(domains.length, lines.length ? 1 : 0)} DOMAINS</span>
+            </div>
+
+            <p className="hint">
+              Nothing you paste is stored or sent anywhere until you choose to.
+              Generic descriptions work fine. No project codenames needed.
+            </p>
+            <button className="primary big-cta" onClick={run} disabled={!lines.length || mapping}>
+              {mapping ? "Mapping…" : "Map my portfolio →"}
+            </button>
+            <p className="hint faint">
+              The analysis runs once on your list and isn't saved. We only keep your details if you ask for a team brief.
+            </p>
+          </section>
+        </div>
+
+        {mapping && (
+          <div className="mapping" role="status" aria-live="polite">
+            <div className="mapping-inner">
+              <div className="mapping-log">
+                {MAP_STEPS.map((s, i) => {
+                  const isLast = i === MAP_STEPS.length - 1;
+                  const line = isLast && slowJoke ? "still faster than your last integration project" : s;
+                  return (
+                    <div className="loadline" key={i} style={{ animationDelay: `${i * 0.32}s` }}>
+                      <span className="loadmark" style={{ animationDelay: `${i * 0.32 + 0.24}s` }}>OK</span>
+                      <span>▸ {line}{i === 0 ? ` (${lines.length})` : ""}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mapping-verdict">
+                {islands} island{islands === 1 ? "" : "s"}.<br />No connections between them.
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
+    );
+
+  /* ─────────────────────────── RESULTS ─────────────────────────── */
+
+  const runDate = new Date(diag.run_at).toISOString().slice(0, 10);
+  const diagShown = resolveDiagnostic(diag, hoverInfo || selected, defaultEdge);
+  const auditShown = resolveAudit(diag, selected, defaultEdge);
+
+  return (
+    <div className="results">
+      <header className="void-header">
+        <span>
+          <span className="void-brand" onClick={handleBrandClick}>Kaara</span>
+          <span className="void-title">AI SPRAWL MAP</span>
+        </span>
+        <span className="void-meta">
+          {diag.diagnostic_id} · {runDate} · {diag.counts.initiatives} INITIATIVES · <span className="void-frag">{diag.status}</span>
+        </span>
+      </header>
+
+      <div className="void-body">
+        <aside className="void-audit" onMouseMove={handlePanelMove} onMouseEnter={handlePanelEnter} onMouseLeave={handlePanelLeave}>
+          <p className="slabel">AUDIT EXPLANATION</p>
+          <p className="void-audit-title">{auditShown.title}</p>
+          {auditShown.sub && <p className="void-audit-sub">{auditShown.sub}</p>}
+          {auditShown.kind === "edge" ? (
+            <ol className="trace">
+              {auditShown.trace.map((r, j) => {
+                const last = j === auditShown.trace.length - 1;
+                const fail = r.startsWith("Failure mode:");
+                return (
+                  <li key={j} className={(last ? "last" : "") + (fail ? " fail" : "")}>
+                    <span className="trace-n">{String(j + 1).padStart(2, "0")}</span>
+                    <span className="trace-t">{toSentence(r)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : auditShown.findings.length ? (
+            <div className="void-audit-findings">
+              {auditShown.findings.map((f, i) => (
+                <div className="void-audit-finding" key={i}>
+                  <span className={"void-audit-tag " + f.type.toLowerCase()}>{FINDING_ICON[f.type]}</span>
+                  <div>
+                    <p className="void-audit-finding-title">{f.title}</p>
+                    <p className="void-audit-finding-detail">{f.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="void-audit-empty">No findings directly involve this system.</p>
+          )}
+        </aside>
+
+        <section className="void-stage" aria-label="Fragmentation map">
+          <ResultsCanvas graph={diag.graph} onHoverChange={setHoverInfo} onSelectChange={setSelected} />
+        </section>
+
+        <aside className="void-side" onMouseMove={handlePanelMove} onMouseEnter={handlePanelEnter} onMouseLeave={handlePanelLeave}>
+          <div className="void-consequence" data-active={diagShown.active ? "true" : "false"}>
+            <p className="slabel">DIAGNOSTIC</p>
+            <p className="void-diag-sub">{diagShown.label}</p>
+            <p className="void-diag-text">{diagShown.text}</p>
+          </div>
+          <div className="void-divider" />
+          <div className="void-cta">
+            <a className="void-book" href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
+              Book 30 min with Shrihari →
+            </a>
+            {sendForm.sent ? (
+              <p className="void-sent">MAP SENT · Shrihari will follow up within 24h.</p>
+            ) : sendForm.open ? (
+              <form className="void-send-form" onSubmit={submitSendMap}>
+                <input type="email" required placeholder="work email" aria-label="work email"
+                  value={sendForm.email} onChange={(e) => setSendForm((f) => ({ ...f, email: e.target.value }))} />
+                <input type="text" required placeholder="company" aria-label="company"
+                  value={sendForm.company} onChange={(e) => setSendForm((f) => ({ ...f, company: e.target.value }))} />
+                <button className="void-send-submit" type="submit" disabled={sendForm.sending}>
+                  {sendForm.sending ? "Sending…" : "Send"}
+                </button>
+                {sendForm.error && <p className="void-send-error">{sendForm.error}</p>}
+              </form>
+            ) : (
+              <button className="void-send-btn" onClick={() => setSendForm((f) => ({ ...f, open: true }))}>
+                Send me this map
+              </button>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
