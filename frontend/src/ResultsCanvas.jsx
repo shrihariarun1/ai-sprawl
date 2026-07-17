@@ -112,7 +112,7 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - cx, py - cy);
 }
 
-export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) {
+export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, onSelectChange }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
   const simRef = useRef(null);
@@ -120,8 +120,16 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
   const [reduced] = useState(prefersReducedMotion);
   const onHoverChangeRef = useRef(onHoverChange);
   const onSelectChangeRef = useRef(onSelectChange);
+  const modeRef = useRef(mode);
+  const drawRef = useRef(null);
   onHoverChangeRef.current = onHoverChange;
   onSelectChangeRef.current = onSelectChange;
+  modeRef.current = mode;
+
+  // "potential" mode is purely cosmetic re-paint of the same edges — force
+  // an immediate frame on toggle so it's not waiting for the next rAF tick
+  // (matters most under prefers-reduced-motion, where the loop isn't running)
+  useEffect(() => { drawRef.current && drawRef.current(performance.now()); }, [mode]);
 
   // ── build the simulation from the graph, once per diagnostic ──
   useEffect(() => {
@@ -457,8 +465,32 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       }
     };
 
+    // ── "potential" mode: show the same edge as if it existed — a full
+    // green dotted line, no gap-stop, no particle pool, positive label.
+    // Purely a re-paint of the real missing edges, not new data.
+    const drawEdgePotential = (ctx2, a, b, active, dimmed) => {
+      const op = dimmed ? 0.3 : active ? 1 : 0.6;
+      ctx2.strokeStyle = `rgba(16,185,129,${op.toFixed(3)})`;
+      ctx2.lineWidth = active ? 2.2 : 1.4;
+      ctx2.setLineDash([2, 5]);
+      ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(b.x, b.y); ctx2.stroke();
+      ctx2.setLineDash([]);
+
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const labelOp = dimmed ? 0.4 : active ? 1 : 0.8;
+      ctx2.font = "9.5px 'JetBrains Mono', ui-monospace, monospace";
+      const text = "could connect";
+      const tw = ctx2.measureText(text).width;
+      ctx2.fillStyle = "#000";
+      ctx2.fillRect(mx - tw / 2 - 7, my - 10, tw + 14, 18);
+      ctx2.fillStyle = active ? "#34d399" : `rgba(16,185,129,${labelOp.toFixed(3)})`;
+      ctx2.textAlign = "center";
+      ctx2.fillText(text, mx, my + 4);
+    };
+
     // ── one missing edge: dashed reveal, gap wash, particle pool ──
     const drawEdge = (ctx2, e, a, b, t, active, dimmed) => {
+      if (modeRef.current === "potential") { drawEdgePotential(ctx2, a, b, active, dimmed); return; }
       const since = t - simRef.current.mounted;
       const localT = reduced ? 1 : since - e.startAt;
       if (!reduced && localT < 0) return;
@@ -774,6 +806,8 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       else cancelAnimationFrame(rafRef.current);
     };
     document.addEventListener("visibilitychange", onVis);
+
+    drawRef.current = draw;
 
     // paint one frame synchronously so the canvas is never blank before the
     // first rAF tick (also the only paint that happens if rAF is throttled,

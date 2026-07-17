@@ -455,6 +455,7 @@ export default function App() {
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [slowJoke, setSlowJoke] = useState(false);
   const [benchmark, setBenchmark] = useState(PLACEHOLDER_BENCHMARK);
+  const [mapMode, setMapMode] = useState("chaos"); // chaos | potential — before/after toggle
   const taRef = useRef(null);
   const gutRef = useRef(null);
   const brandClicks = useRef({ count: 0, last: 0 });
@@ -739,6 +740,9 @@ export default function App() {
         </span>
         <span className="void-meta">
           {diag.diagnostic_id} · {runDate} · {diag.counts.initiatives} INITIATIVES · <span className="void-frag">{diag.status}</span>
+          {diag.sprawl_score && (
+            <> · <span style={{ color: diag.sprawl_score.color }}>SCORE {diag.sprawl_score.score}/100</span></>
+          )}
         </span>
       </header>
 
@@ -766,7 +770,12 @@ export default function App() {
                 <div className="void-audit-finding" key={i}>
                   <span className={"void-audit-tag " + f.type.toLowerCase()}>{FINDING_ICON[f.type]}</span>
                   <div>
-                    <p className="void-audit-finding-title">{f.title}</p>
+                    <div className="finding-title-row">
+                      {f.evidence?.severity && (
+                        <span className={"severity-badge severity-" + f.evidence.severity}>{f.evidence.severity}</span>
+                      )}
+                      <p className="void-audit-finding-title">{f.title}</p>
+                    </div>
                     <p className="void-audit-finding-detail">{f.detail}</p>
                   </div>
                 </div>
@@ -778,10 +787,40 @@ export default function App() {
         </aside>
 
         <section className="void-stage" aria-label="Fragmentation map">
-          <ResultsCanvas graph={diag.graph} onHoverChange={setHoverInfo} onSelectChange={setSelected} />
+          <div className="mode-toggle">
+            <span className={mapMode === "chaos" ? "mode-label active" : "mode-label"}>Show the chaos</span>
+            <button
+              className={"mode-switch" + (mapMode === "potential" ? " on" : "")}
+              role="switch"
+              aria-checked={mapMode === "potential"}
+              aria-label="Toggle between the current fragmented map and its potential"
+              onClick={() => setMapMode((m) => (m === "chaos" ? "potential" : "chaos"))}
+            >
+              <span className="mode-knob" />
+            </button>
+            <span className={mapMode === "potential" ? "mode-label active" : "mode-label"}>Show the potential</span>
+          </div>
+          <ResultsCanvas graph={diag.graph} mode={mapMode} onHoverChange={setHoverInfo} onSelectChange={setSelected} />
         </section>
 
         <aside className="void-side" onMouseMove={handlePanelMove} onMouseEnter={handlePanelEnter} onMouseLeave={handlePanelLeave}>
+          {diag.sprawl_score && (
+            <div className="score-banner">
+              <div className="score-circle" style={{ borderColor: diag.sprawl_score.color }}>
+                <span className="score-number">{diag.sprawl_score.score}</span>
+                <span className="score-label">/ 100</span>
+              </div>
+              <div className="score-details">
+                <span className="score-level" style={{ color: diag.sprawl_score.color }}>{diag.sprawl_score.level}</span>
+                <div className="score-components">
+                  <span>Duplicates {diag.sprawl_score.components.duplicates}%</span>
+                  <span>Missing edges {diag.sprawl_score.components.missing_edges}%</span>
+                  <span>Data touches {diag.sprawl_score.components.data_touches}%</span>
+                  <span>Domain diversity {diag.sprawl_score.components.domain_diversity}%</span>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="void-consequence" data-active={diagShown.active ? "true" : "false"}>
             <p className="slabel">DIAGNOSTIC</p>
             <p className="void-diag-sub">{diagShown.label}</p>

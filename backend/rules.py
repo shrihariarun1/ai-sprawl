@@ -277,6 +277,49 @@ def derive(items):
     }
 
 
+SCORE_LEVELS = [
+    (70, "Critical Fragmentation", "#EF4444"),
+    (40, "Moderate Fragmentation", "#F59E0B"),
+    (0, "Low Fragmentation", "#10B981"),
+]
+
+
+def sprawl_score(counts, missing_edges):
+    """Weighted 0-100 score from the already-computed counts/edges — no new
+    inputs, just a defensible combination of numbers the diagnostic already
+    produces. Duplicated capabilities weigh heaviest (they're the clearest
+    waste), then high-severity missing connections, then raw data-sharing
+    sprawl, then domain fragmentation relative to portfolio size.
+    """
+    duplicated = counts.get("rebuilt_capabilities", 0)
+    high_missing = sum(1 for e in missing_edges if e.get("severity") == "HIGH")
+    data_touches = counts.get("independent_data_touches", 0)
+    domains = counts.get("problem_domains", 0)
+    initiatives = counts.get("initiatives", 0) or 1
+
+    dup_frac = min(duplicated / 3, 1.0)
+    missing_frac = min(high_missing / 5, 1.0)
+    data_frac = min(data_touches / 10, 1.0)
+    domain_frac = min((domains / initiatives) * 2, 1.0)
+
+    raw = dup_frac * 0.40 + missing_frac * 0.30 + data_frac * 0.20 + domain_frac * 0.10
+    score = round(raw * 100)
+
+    level, color = next((lvl, col) for threshold, lvl, col in SCORE_LEVELS if score > threshold)
+
+    return {
+        "score": score,
+        "level": level,
+        "color": color,
+        "components": {
+            "duplicates": round(dup_frac * 100),
+            "missing_edges": round(missing_frac * 100),
+            "data_touches": round(data_frac * 100),
+            "domain_diversity": round(domain_frac * 100),
+        },
+    }
+
+
 def analyze(lines):
     """Rules-only path: classify then derive. LLM layer may run between."""
     return derive(classify(lines))

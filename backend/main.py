@@ -80,6 +80,7 @@ def analyze(body: AnalyzeIn):
         "counts": part["counts"],
         "graph": part["graph"],
         "findings": part["findings"],
+        "sprawl_score": rules.sprawl_score(part["counts"], part["graph"]["missing_edges"]),
     }
     diag = llm.write_prose(diag)
 

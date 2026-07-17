@@ -270,6 +270,24 @@ button:disabled { opacity:.4; cursor:not-allowed; }
    Transparent so the page-wide dot-grain on .results shows through wherever
    the canvas itself doesn't paint (it clears to transparent every frame). */
 .void-stage { position:relative; min-height:0; background:transparent; }
+.mode-toggle {
+  position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:5;
+  display:flex; align-items:center; gap:12px; padding:8px 16px;
+  background:rgba(17,24,39,.7); border:1px solid rgba(255,255,255,.08); border-radius:999px;
+  backdrop-filter:blur(8px); pointer-events:auto;
+}
+.mode-label { font-family:var(--sans); font-size:12.5px; color:rgba(255,255,255,.35); transition:color .25s ease; }
+.mode-label.active { color:#fff; font-weight:600; }
+.mode-switch {
+  width:40px; height:22px; padding:0; border:none; border-radius:12px;
+  background:rgba(255,255,255,.12); position:relative; flex-shrink:0; transition:background .25s ease;
+}
+.mode-switch.on { background:rgba(16,185,129,.4); }
+.mode-knob {
+  position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+  background:#fff; transition:left .25s ease;
+}
+.mode-switch.on .mode-knob { left:20px; }
 .void-canvas { display:block; width:100%; height:100%; cursor:default; }
 
 /* far-left corner: audit
@@ -323,7 +341,15 @@ button:disabled { opacity:.4; cursor:not-allowed; }
 .void-audit-tag { font-size:13px; line-height:1.6; flex-shrink:0; width:13px; text-align:center; }
 .void-audit-tag.missing { color:var(--red); }
 .void-audit-tag.duplicated, .void-audit-tag.shared { color:var(--amber); }
-.void-audit-finding-title { font-family:var(--sans); font-size:13px; font-weight:600; color:#d8d8dc; margin:0 0 3px; line-height:1.4; }
+.void-audit-finding-title { font-family:var(--sans); font-size:13px; font-weight:600; color:#d8d8dc; margin:0; line-height:1.4; }
+.finding-title-row { display:flex; align-items:baseline; gap:8px; margin-bottom:3px; }
+.severity-badge {
+  flex-shrink:0; font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.06em;
+  padding:2px 7px; border-radius:4px; text-transform:uppercase;
+}
+.severity-HIGH { background:rgba(239,68,68,.15); color:#ef4444; border:1px solid rgba(239,68,68,.3); }
+.severity-MEDIUM { background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.3); }
+.severity-LOW { background:rgba(16,185,129,.15); color:#10b981; border:1px solid rgba(16,185,129,.3); }
 .void-audit-finding-detail { font-family:var(--mono); font-size:13px; color:#8a8a98; line-height:1.6; margin:0; }
 
 .trace { list-style:none; margin:0; padding:0; font-family:var(--mono); font-size:13px; line-height:1.7; color:#8a8a98; }
@@ -339,6 +365,22 @@ button:disabled { opacity:.4; cursor:not-allowed; }
   display:flex; flex-direction:column; min-height:0;
   border-left:1px solid rgba(40,40,60,.6);
 }
+.score-banner {
+  display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
+  padding:20px 24px; border-bottom:1px solid rgba(40,40,60,.6); flex-shrink:0;
+}
+.score-circle {
+  width:72px; height:72px; border-radius:50%; border:4px solid;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.score-number { font-family:var(--sans); font-size:26px; font-weight:800; color:#fff; line-height:1; }
+.score-label { font-family:var(--mono); font-size:9.5px; color:var(--dim); }
+.score-level { font-family:var(--sans); font-size:14px; font-weight:700; }
+.score-components {
+  display:flex; flex-direction:column; gap:3px; margin-top:6px;
+  font-family:var(--mono); font-size:10px; color:var(--dim); letter-spacing:.02em;
+}
+
 .void-consequence {
   padding:22px 24px 10px; border-left:2px solid rgba(239,68,68,.3);
   transition:border-color .2s ease; overflow-y:auto; flex:1 1 auto; min-height:0;
