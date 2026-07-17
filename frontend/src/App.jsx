@@ -24,6 +24,12 @@ const PLACEHOLDER_VARIANTS = [
   "\"innovation\" (undefined scope, Q3)\nroomba fleet optimization engine\nexcel macro rebranded as machine learning\n(one initiative per line)",
 ];
 
+// shown until /api/benchmark reports 5+ real runs, then the real numbers take over
+const PLACEHOLDER_BENCHMARK = {
+  available: true, runs: 42,
+  avg_problem_domains: 4.2, avg_rebuilt_capabilities: 2.3, avg_independent_data_touches: 14.6,
+};
+
 const CONFETTI_COLORS = ["#e5342a", "#ececec", "#b47814"];
 function spawnConfetti(x, y) {
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -61,36 +67,119 @@ function wrapCanvasText(ctx, text, maxWidth) {
   return lines;
 }
 
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// small decorative node-cluster motif echoing the real fragmentation map —
+// solid lines between connected nodes, one dashed red line for the "missing" one
+function drawShareCardMotif(ctx, x, y) {
+  const pts = [[0, 0], [86, -34], [150, 30], [70, 78], [10, 132]];
+  const edges = [[0, 1], [1, 2], [3, 4], [0, 4]];
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = "rgba(255,255,255,.16)";
+  ctx.lineWidth = 1.5;
+  edges.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(pts[a][0], pts[a][1]);
+    ctx.lineTo(pts[b][0], pts[b][1]);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = "rgba(229,52,42,.85)";
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(pts[2][0], pts[2][1]);
+  ctx.lineTo(pts[3][0], pts[3][1]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  pts.forEach(([px, py], i) => {
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.fillStyle = i === 2 || i === 3 ? "#E5342A" : "#c8c8d0";
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+const HEADLINE_BY_STATUS = {
+  FRAGMENTED: "Your AI portfolio is fragmented.",
+  CONNECTED: "Your AI portfolio is connected.",
+};
+
 // renders a branded 1200x630 summary of a diagnostic for download/sharing
-function buildShareCardBlob(diag) {
+async function buildShareCardBlob(diag) {
+  if (document.fonts?.ready) await document.fonts.ready;
+
   const canvas = document.createElement("canvas");
   canvas.width = 1200;
   canvas.height = 630;
   const ctx = canvas.getContext("2d");
   const mono = "'IBM Plex Mono', ui-monospace, monospace";
+  const sans = "'Space Grotesk', 'Segoe UI', system-ui, sans-serif";
 
   ctx.fillStyle = "#0a0a0e";
   ctx.fillRect(0, 0, 1200, 630);
+
+  // dot-grain texture, matching the site's background treatment
+  ctx.fillStyle = "rgba(255,255,255,.045)";
+  for (let gx = 11; gx < 1200; gx += 22) {
+    for (let gy = 11; gy < 630; gy += 22) {
+      ctx.beginPath();
+      ctx.arc(gx, gy, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // soft corner glow
+  const glow = ctx.createRadialGradient(120, 60, 0, 120, 60, 520);
+  glow.addColorStop(0, "rgba(229,52,42,.10)");
+  glow.addColorStop(1, "rgba(229,52,42,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 1200, 630);
+
   ctx.fillStyle = "#E5342A";
   ctx.fillRect(0, 0, 10, 630);
 
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#E5342A";
-  ctx.font = `700 26px ${mono}`;
-  ctx.fillText("Kaara", 72, 90);
+  ctx.font = `700 27px ${sans}`;
+  ctx.fillText("Kaara", 72, 92);
   ctx.fillStyle = "#8a8a98";
-  ctx.font = `18px ${mono}`;
-  ctx.fillText("AI SPRAWL MAP", 182, 90);
+  ctx.font = `16px ${mono}`;
+  ctx.fillText("AI SPRAWL MAP", 180, 92);
 
-  ctx.fillStyle = "#8a8a98";
-  ctx.font = `14px ${mono}`;
+  ctx.fillStyle = "#7a7a86";
+  ctx.font = `13px ${mono}`;
   ctx.fillText(
     `${diag.diagnostic_id} · ${new Date(diag.run_at).toISOString().slice(0, 10)} · ${diag.counts.initiatives} INITIATIVES`,
     72, 128
   );
-  ctx.fillStyle = "#E5342A";
-  ctx.font = `700 14px ${mono}`;
-  ctx.fillText(diag.status, 72, 152);
+
+  // status pill
+  ctx.font = `700 13px ${mono}`;
+  const pillLabel = diag.status;
+  const pillW = ctx.measureText(pillLabel).width + 36;
+  roundRectPath(ctx, 72, 144, pillW, 30, 15);
+  ctx.strokeStyle = "rgba(229,52,42,.55)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#ff6b60";
+  ctx.fillText(pillLabel, 72 + 18, 164);
+
+  ctx.fillStyle = "#ececec";
+  ctx.font = `700 46px ${sans}`;
+  wrapCanvasText(ctx, HEADLINE_BY_STATUS[diag.status] || "Here's where your AI portfolio stands.", 760)
+    .slice(0, 2)
+    .forEach((l, j) => ctx.fillText(l, 72, 260 + j * 54));
+
+  drawShareCardMotif(ctx, 900, 210);
 
   const stats = [
     [diag.counts.problem_domains, "PROBLEM DOMAINS"],
@@ -98,30 +187,42 @@ function buildShareCardBlob(diag) {
     [diag.counts.independent_data_touches, "INDEPENDENT DATA TOUCHES"],
     [diag.findings.length, "FINDINGS"],
   ];
-  const statW = 264;
+  const tileW = 252, tileH = 108, gap = 16, tileY = 356;
   stats.forEach(([n, label], i) => {
-    const x = 72 + i * statW;
+    const x = 72 + i * (tileW + gap);
+    roundRectPath(ctx, x, tileY, tileW, tileH, 10);
+    ctx.fillStyle = "rgba(255,255,255,.035)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.fillStyle = "#ececec";
-    ctx.font = `700 46px ${mono}`;
-    ctx.fillText(String(n), x, 250);
+    ctx.font = `700 38px ${sans}`;
+    ctx.fillText(String(n), x + 20, tileY + 52);
     ctx.fillStyle = "#8a8a98";
-    ctx.font = `12px ${mono}`;
-    wrapCanvasText(ctx, label, statW - 24).forEach((l, j) => ctx.fillText(l, x, 276 + j * 16));
+    ctx.font = `11px ${mono}`;
+    wrapCanvasText(ctx, label, tileW - 40).forEach((l, j) => ctx.fillText(l, x + 20, tileY + 76 + j * 15));
   });
 
   const topFinding = diag.findings.find((f) => f.evidence?.severity === "HIGH") || diag.findings[0];
   if (topFinding) {
-    ctx.fillStyle = "#8a8a98";
-    ctx.font = `14px ${mono}`;
-    ctx.fillText(`TOP FINDING · ${topFinding.type}`, 72, 380);
+    ctx.fillStyle = "#7a7a86";
+    ctx.font = `12px ${mono}`;
+    ctx.fillText(`TOP FINDING · ${topFinding.type}`, 72, 512);
     ctx.fillStyle = "#ececec";
-    ctx.font = `700 30px ${mono}`;
-    wrapCanvasText(ctx, topFinding.title, 1050).slice(0, 3).forEach((l, j) => ctx.fillText(l, 72, 420 + j * 38));
+    ctx.font = `600 24px ${sans}`;
+    wrapCanvasText(ctx, topFinding.title, 1056).slice(0, 2).forEach((l, j) => ctx.fillText(l, 72, 542 + j * 30));
   }
 
-  ctx.fillStyle = "#8a8a98";
-  ctx.font = `16px ${mono}`;
-  ctx.fillText("Mapped with the Kaara AI Sprawl Map — free, in under a minute", 72, 588);
+  ctx.strokeStyle = "rgba(255,255,255,.10)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(72, 596);
+  ctx.lineTo(1128, 596);
+  ctx.stroke();
+  ctx.fillStyle = "#7a7a86";
+  ctx.font = `13px ${mono}`;
+  ctx.fillText("Mapped with the Kaara AI Sprawl Map — free, in under a minute", 72, 618);
 
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
@@ -341,7 +442,7 @@ export default function App() {
   const [sendForm, setSendForm] = useState({ open: false, email: "", company: "", sending: false, sent: false, error: "" });
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [slowJoke, setSlowJoke] = useState(false);
-  const [benchmark, setBenchmark] = useState(null);
+  const [benchmark, setBenchmark] = useState(PLACEHOLDER_BENCHMARK);
   const taRef = useRef(null);
   const gutRef = useRef(null);
   const brandClicks = useRef({ count: 0, last: 0 });
@@ -488,7 +589,17 @@ export default function App() {
         <header className="hero-bar">
           <div className="shell hero-bar-in">
             <span className="wordmark"><span className="brand" onClick={handleBrandClick}>Kaara</span> AI SPRAWL MAP</span>
-            <span className="badge">FREE · 90 SECONDS · NO SIGNUP</span>
+            <span className="badge-group">
+              {benchmark && (
+                <span
+                  className="badge benchmark-badge"
+                  title={`Across ${benchmark.runs} portfolios mapped so far, the average has ${benchmark.avg_rebuilt_capabilities} rebuilt capabilities and ${benchmark.avg_independent_data_touches} independent data touches.`}
+                >
+                  AVG {benchmark.avg_rebuilt_capabilities} REBUILT CAPS · {benchmark.runs} RUNS
+                </span>
+              )}
+              <span className="badge">FREE · 90 SECONDS · NO SIGNUP</span>
+            </span>
           </div>
         </header>
 
@@ -500,13 +611,6 @@ export default function App() {
               Paste every AI, automation, and data initiative you can think of, one per line.
               We'll map the whole portfolio at once.
             </p>
-            {benchmark && (
-              <p className="hero-benchmark">
-                Across {benchmark.runs} portfolios mapped so far, the average has{" "}
-                {benchmark.avg_rebuilt_capabilities} rebuilt capabilities and{" "}
-                {benchmark.avg_independent_data_touches} independent data touches.
-              </p>
-            )}
           </section>
 
           <section className="hero-panel" aria-label="Your initiatives"
@@ -547,10 +651,9 @@ export default function App() {
 
             <div className="row">
               <div className="menu-anchor">
-                {!lines.length && <span className="try-sample-hint">New here?</span>}
                 <button className={"ghost" + (lines.length ? "" : " ghost-accent")} aria-haspopup="true" aria-expanded={menu}
                   onClick={() => setMenu(!menu)}>
-                  {lines.length ? "Load an example stack" : "See it work with a sample stack"} {menu ? "▴" : "▾"}
+                  {lines.length ? "Load an example stack" : "New here? See a sample stack"} {menu ? "▴" : "▾"}
                 </button>
                 {menu && (
                   <div className="menu" role="menu">
