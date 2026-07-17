@@ -8,7 +8,9 @@ funnel (team brief + book a working session).
 
 ## Stack
 - Backend: FastAPI + SQLite (local), Python 3.11+
-- Frontend: React + Vite + plain CSS (dark terminal aesthetic, red #E5342A accent, mono headers)
+- Frontend: React + Vite + plain CSS (diagnostic-dashboard aesthetic: navy/charcoal
+  #0A0E1A background, amber #F59E0B primary accent, red #EF4444 reserved for
+  critical/missing findings, green #10B981 for connected/success, Inter + JetBrains Mono)
 - Analysis: HYBRID. Rules engine runs first and always. LLM (Anthropic API) is a
   fallback: it classifies lines the rules can't, and writes narrative prose.
   Everything must still render with no ANTHROPIC_API_KEY set.
