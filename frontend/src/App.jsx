@@ -499,6 +499,7 @@ export default function App() {
   const [mapMode, setMapMode] = useState("chaos"); // chaos | potential — before/after toggle
   const [showProjectCards, setShowProjectCards] = useState(false);
   const [expandedCard, setExpandedCard] = useState(0);
+  const [showEmbed, setShowEmbed] = useState(false);
   const taRef = useRef(null);
   const gutRef = useRef(null);
   const brandClicks = useRef({ count: 0, last: 0 });
@@ -931,6 +932,25 @@ export default function App() {
             <button className="void-share-btn" onClick={() => setShowProjectCards(true)}>
               Initiative details ▾
             </button>
+            <button className="void-share-btn" onClick={() => setShowEmbed((v) => !v)}>
+              {showEmbed ? "Hide embed code ▴" : "Embed Sprawl Score badge ▾"}
+            </button>
+            {showEmbed && diag.sprawl_score && (() => {
+              const origin = window.location.origin;
+              const badgeUrl = `${origin}/api/badge/${diag.diagnostic_id}.svg`;
+              const reportUrl = `${origin}/report/${diag.diagnostic_id}`;
+              const html = `<a href="${reportUrl}"><img src="${badgeUrl}" alt="AI Sprawl Score" /></a>`;
+              const markdown = `[![AI Sprawl Score](${badgeUrl})](${reportUrl})`;
+              return (
+                <div className="embed-panel">
+                  <img className="embed-preview" src={badgeUrl} alt="AI Sprawl Score badge preview" />
+                  <label className="embed-label">HTML (email signature, blog)</label>
+                  <textarea className="embed-code" readOnly value={html} onClick={(e) => e.target.select()} rows={2} />
+                  <label className="embed-label">Markdown (GitHub, README)</label>
+                  <textarea className="embed-code" readOnly value={markdown} onClick={(e) => e.target.select()} rows={2} />
+                </div>
+              );
+            })()}
             {sendForm.sent ? (
               <p className="void-sent">MAP SENT · Shrihari will follow up within 24h.</p>
             ) : sendForm.open ? (

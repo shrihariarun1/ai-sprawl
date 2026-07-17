@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -100,6 +101,29 @@ def get_report(diagnostic_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Report not found")
     return json.loads(row["payload"])
+
+
+@app.get("/api/badge/{diagnostic_id}.svg")
+def get_badge(diagnostic_id: str):
+    con = db()
+    row = con.execute("SELECT payload FROM runs WHERE diagnostic_id=?", (diagnostic_id,)).fetchone()
+    con.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    diag = json.loads(row["payload"])
+    score = diag.get("sprawl_score", {})
+    value = score.get("score", 0)
+    color = score.get("color", "#94A3B8")
+    suffix_x = 16 + len(str(value)) * 14 + 6
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56">
+  <rect width="220" height="56" rx="8" fill="#0A0E1A" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="16" y="22" font-family="Inter, sans-serif" font-size="10" letter-spacing="1" fill="#94A3B8">AI SPRAWL SCORE</text>
+  <text x="16" y="44" font-family="JetBrains Mono, monospace" font-size="22" font-weight="700" fill="{color}">{value}</text>
+  <text x="{suffix_x}" y="44" font-family="Inter, sans-serif" font-size="13" fill="rgba(255,255,255,0.35)">/ 100</text>
+</svg>"""
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 MIN_BENCHMARK_RUNS = 5

@@ -435,6 +435,14 @@ button:disabled { opacity:.4; cursor:not-allowed; }
   background:transparent; border:1px solid rgba(40,40,60,.8); border-radius:6px; padding:11px 18px;
 }
 .void-send-btn:hover, .void-share-btn:hover { color:#c8c8d0; border-color:rgba(60,60,84,.9); }
+.embed-panel { display:flex; flex-direction:column; gap:6px; padding:10px 2px 2px; }
+.embed-preview { width:100%; max-width:220px; border-radius:8px; }
+.embed-label { font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--faint); text-transform:uppercase; margin-top:4px; }
+.embed-code {
+  background:#000; border:1px solid rgba(40,40,60,.8); border-radius:6px;
+  color:#c8c8d0; font-family:var(--mono); font-size:10.5px; padding:8px 10px; resize:none; width:100%;
+}
+
 .void-send-form { display:flex; flex-direction:column; gap:8px; }
 .void-send-form input {
   background:#000; border:1px solid rgba(40,40,60,.8); border-radius:6px;
