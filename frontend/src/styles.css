@@ -164,6 +164,18 @@ h1 {
 .chip-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; vertical-align:middle; }
 .kbd-hint { font-family:var(--mono); font-size:9.5px; letter-spacing:.2em; color:#3d3d46; white-space:nowrap; }
 
+.analysis-feed {
+  margin-top:14px; padding:10px 14px; background:rgba(0,0,0,.3); border-radius:8px;
+  font-family:var(--mono); font-size:12.5px; display:flex; flex-direction:column; gap:5px;
+}
+.feed-step { display:flex; align-items:center; gap:9px; color:rgba(255,255,255,.35); }
+.feed-step.done { color:rgba(255,255,255,.75); }
+.feed-step.active { color:var(--amber); }
+.feed-icon { flex-shrink:0; width:12px; text-align:center; }
+.feed-step.done .feed-icon { color:var(--green); }
+.feed-step.active .feed-icon { animation:feed-pulse .8s ease-in-out infinite; }
+@keyframes feed-pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+
 .row { display:flex; justify-content:space-between; align-items:center; margin:16px 0 20px; font-family:var(--mono); font-size:11.5px; color:var(--dim); }
 .lines { letter-spacing:.16em; color:var(--faint); }
 
@@ -199,20 +211,32 @@ button:disabled { opacity:.4; cursor:not-allowed; }
 
 /* ── mapping overlay (the held beat) ────────────────────── */
 .mapping {
-  position:absolute; inset:0; z-index:4; pointer-events:none;
-  background:radial-gradient(60% 60% at 50% 50%, rgba(0,0,0,.32), rgba(0,0,0,.68));
+  position:absolute; inset:0; z-index:4; display:flex; align-items:center; justify-content:center;
+  background:rgba(10,14,26,.85); backdrop-filter:blur(10px);
   animation:appear .5s var(--ease) both;
 }
-.mapping-inner {
-  position:absolute; left:0; right:0; bottom:8vh; display:flex; flex-direction:column;
-  align-items:center; gap:28px; padding:0 24px; text-align:center;
+.processing-card {
+  background:var(--card2); border:1px solid var(--line-strong); border-radius:16px;
+  padding:40px 48px; max-width:440px; width:100%; margin:0 24px; box-shadow:var(--shadow-pop);
 }
-.mapping-log { font-family:var(--mono); font-size:12.5px; color:var(--dim); text-align:left; }
-.loadline { display:flex; gap:14px; align-items:center; padding:3px 0; opacity:0; animation:appear .01s forwards; }
-.loadmark { color:#4fae72; font-size:9px; letter-spacing:.16em; border:1px solid rgba(79,174,114,.32); border-radius:4px; padding:2px 7px; opacity:0; animation:appear .01s forwards; }
+.processing-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.processing-title { font-family:var(--display); font-size:18px; font-weight:700; color:#fff; }
+.processing-time { font-family:var(--mono); font-size:12px; color:var(--dim); }
+.progress-bar-container { width:100%; height:4px; background:rgba(255,255,255,.08); border-radius:2px; overflow:hidden; margin-bottom:26px; }
+.progress-bar-fill {
+  height:100%; width:4%; border-radius:2px;
+  background:linear-gradient(90deg, var(--amber), var(--red));
+  animation:progress-fill 2.9s var(--ease) forwards;
+}
+@keyframes progress-fill { from { width:4%; } to { width:94%; } }
+
+.mapping-log { font-family:var(--mono); font-size:13px; color:var(--dim); text-align:left; display:flex; flex-direction:column; gap:10px; margin-bottom:22px; }
+.loadline { display:flex; gap:12px; align-items:center; padding:0; opacity:0; animation:appear .01s forwards; }
+.loadmark { color:var(--green); font-size:11px; width:16px; text-align:center; flex-shrink:0; opacity:0; animation:appear .01s forwards; }
 .mapping-verdict {
-  font-family:var(--display); font-weight:600; font-size:clamp(24px,3vw,34px);
-  line-height:1.2; letter-spacing:-.02em; color:var(--fg); margin:0;
+  font-family:var(--display); font-weight:600; font-size:clamp(20px,2.4vw,26px);
+  line-height:1.25; letter-spacing:-.02em; color:var(--fg); margin:0;
+  padding-top:18px; border-top:1px solid rgba(255,255,255,.06);
   opacity:0; animation:rise .6s var(--ease) 1.7s both;
 }
 

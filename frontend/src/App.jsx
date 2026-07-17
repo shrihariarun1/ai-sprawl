@@ -463,6 +463,7 @@ export default function App() {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const { domains, unknown } = detectDomains(lines);
   const islands = Math.max(domains.length, 1);
+  const feedRevealed = Math.min(lines.length, MAP_STEPS.length - 1);
 
   // hooks must run unconditionally — computed here, before the paste-screen's
   // early return, even though it's only meaningful once `diag` exists
@@ -667,6 +668,17 @@ export default function App() {
               </div>
             </div>
 
+            {feedRevealed > 0 && (
+              <div className="analysis-feed">
+                {MAP_STEPS.slice(0, feedRevealed).map((s, i) => (
+                  <div className={"feed-step " + (i === feedRevealed - 1 ? "active" : "done")} key={s}>
+                    <span className="feed-icon">{i === feedRevealed - 1 ? "●" : "✓"}</span>
+                    <span>{s}{i === 0 ? ` (${lines.length})` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="row">
               <div className="menu-anchor">
                 <button className={"ghost" + (lines.length ? "" : " ghost-accent")} aria-haspopup="true" aria-expanded={menu}
@@ -703,15 +715,22 @@ export default function App() {
 
         {mapping && (
           <div className="mapping" role="status" aria-live="polite">
-            <div className="mapping-inner">
+            <div className="processing-card">
+              <div className="processing-header">
+                <span className="processing-title">Analyzing your portfolio</span>
+                <span className="processing-time">~90 seconds</span>
+              </div>
+              <div className="progress-bar-container">
+                <div className="progress-bar-fill" />
+              </div>
               <div className="mapping-log">
                 {MAP_STEPS.map((s, i) => {
                   const isLast = i === MAP_STEPS.length - 1;
                   const line = isLast && slowJoke ? "still faster than your last integration project" : s;
                   return (
                     <div className="loadline" key={i} style={{ animationDelay: `${i * 0.32}s` }}>
-                      <span className="loadmark" style={{ animationDelay: `${i * 0.32 + 0.24}s` }}>OK</span>
-                      <span>▸ {line}{i === 0 ? ` (${lines.length})` : ""}</span>
+                      <span className="loadmark" style={{ animationDelay: `${i * 0.32 + 0.24}s` }}>✓</span>
+                      <span>{line}{i === 0 ? ` (${lines.length})` : ""}</span>
                     </div>
                   );
                 })}
