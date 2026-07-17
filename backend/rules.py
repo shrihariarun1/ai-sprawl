@@ -280,6 +280,16 @@ def derive(items):
     status = "FRAGMENTED" if (rebuilt or present_edges) else "CONNECTED"
     total_cost = sum(f["evidence"].get("cost_estimate", 0) for f in findings)
 
+    # node-index pairs that share a capability or a data entity — drives the
+    # graph's clustering physics on the frontend (related nodes pull together)
+    idx_by_label = {i["system_label"]: idx for idx, i in enumerate(classified)}
+    related_pairs = set()
+    for its in list(cap_items.values()) + [list(v.values()) for v in entity_items.values()]:
+        idxs = sorted({idx_by_label[i["system_label"]] for i in its if i["system_label"] in idx_by_label})
+        for a in range(len(idxs)):
+            for b in range(a + 1, len(idxs)):
+                related_pairs.add((idxs[a], idxs[b]))
+
     return {
         "items": items,
         "status": status,
@@ -299,6 +309,7 @@ def derive(items):
             } for i in classified],
             "missing_edges": present_edges,
             "missing_layer": True,
+            "related_pairs": [list(p) for p in sorted(related_pairs)],
         },
         "findings": findings,
         "total_cost_estimate": total_cost,

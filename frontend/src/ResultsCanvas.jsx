@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 
 /*
-  ResultsCanvas — the entire results page. A slow orbit of node cards around
-  an empty "void" hub (the missing shared signal bus), red dashed lines for
+  ResultsCanvas — the entire results page. A force-directed cluster of node
+  cards: general repulsion keeps them apart, a spring attraction pulls nodes
+  that share a capability or a data entity toward each other (so related
+  systems visibly tangle/overlap — the fragmentation made physical), and a
+  weak center gravity plus continuous jitter keeps the whole thing settled
+  but never fully static, like a live network. Red dashed/pulsing lines mark
   connections that should exist but do not, each bleeding a small pool of
-  particles that travel halfway across the gap and die there — never reaching
-  the other side. That failure, repeated, is the whole pitch.
+  particles that travel halfway across the gap and die there — never
+  reaching the other side. That failure, repeated, is the whole pitch.
 
-  Clicking any node or edge focuses it: the orbit freezes, the camera tweens
-  in on it, and the parent renders the explanation (App.jsx owns that text —
-  this component only reports the selection). Clicking the same thing again,
-  or empty canvas, releases focus and the camera eases back out.
+  Clicking any node or edge focuses it: the simulation freezes, the camera
+  tweens in on it, and the parent renders the explanation (App.jsx owns that
+  text — this component only reports the selection). Clicking the same thing
+  again, or empty canvas, releases focus and physics resumes.
 
   One <canvas>, one rAF loop for the component's life. Hover/click hit-testing
   runs against the same per-frame node/edge positions the draw pass uses, so
@@ -20,6 +24,7 @@ import { useEffect, useRef, useState } from "react";
 const RED = "#ef4444";
 const GREEN = "#10b981";
 const AMBER = (a) => `rgba(245,158,11,${a})`;
+const RED_A = (a) => `rgba(239,68,68,${a})`;
 
 // domain -> node accent color, matching the diagnostic-dashboard palette
 const DOMAIN_COLORS = {
@@ -28,7 +33,7 @@ const DOMAIN_COLORS = {
   documents: "#94a3b8", operations: "#06b6d4", security: "#f43f5e", hr: "#a3e635",
 };
 const domainColor = (d) => DOMAIN_COLORS[d] || "#94a3b8";
-const OMEGA = 0.00013;          // rad/frame — a further ~0.7x on top of the last pass
+
 const NODE_W = 220, NODE_H = 70, CHAMFER = 8;
 const PARTICLES_PER_EDGE = 4;
 const PARTICLE_TRAVEL = 4600;    // ms, source -> midpoint
@@ -39,12 +44,21 @@ const OPACITY_EASE = 0.03;       // per-frame ease toward target opacity — a
                                   // deliberate, slower settle instead of an instant snap
 const CAM_DUR = 2000;            // ms, camera pan/zoom transition
 const DEFAULT_ZOOM = 1.22;       // slightly closer than 1:1 by default
-// Kept modest on purpose: at high zoom the camera re-centers on the focal
-// point and pushes the far side of the orbit ring (and the void hub) outside
-// the canvas bounds entirely — reads as the map "cutting out" rather than
-// focusing. The graph must stay the hero, so a click emphasizes, never crops.
 const NODE_ZOOM = 1.4;
 const EDGE_ZOOM = 1.25;
+
+// ── force-directed layout constants (tuned/validated against 6-8 node
+// portfolios, sparse through fully-dense relatedness, before wiring in) ──
+const REPEL_K = 55000;       // repulsion strength, inverse-square falloff
+const ATTRACT_K = 0.8;       // spring constant pulling related pairs together
+const REST_LENGTH = NODE_W * 0.55;  // target distance for related pairs — less
+                                     // than NODE_W so related cards visibly overlap
+const CENTER_K = 0.15;       // weak pull toward the void hub, keeps the graph framed
+const JITTER = 6;            // continuous small random force — "living network",
+                              // never fully static even once settled
+const DAMPING = 0.90;        // per-step velocity decay
+const MAX_SPEED = 260;       // px/s cap, guards against instability on resume
+const WARMUP_STEPS = 260;    // synchronous pre-settle so the first frame isn't chaos
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia &&
@@ -112,6 +126,53 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - cx, py - cy);
 }
 
+// one physics step, mutates node.x/y/vx/vy in place. Nodes live in a local
+// coordinate space centered at the void hub (0,0) — screen position is this
+// plus the canvas center, added at draw/hit-test time so the sim itself
+// never needs to know the canvas size.
+function stepPhysics(nodes, relatedPairs, dtMs) {
+  const n = nodes.length;
+  const dt = Math.min(dtMs, 32) / 1000;
+
+  for (const nd of nodes) { nd.fx = 0; nd.fy = 0; }
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = a.x - b.x, dy = a.y - b.y;
+      let distSq = dx * dx + dy * dy;
+      if (distSq < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; distSq = dx * dx + dy * dy + 0.01; }
+      const dist = Math.sqrt(distSq);
+      const force = REPEL_K / distSq;
+      const fx = (dx / dist) * force, fy = (dy / dist) * force;
+      a.fx += fx; a.fy += fy; b.fx -= fx; b.fy -= fy;
+    }
+  }
+
+  for (const [i, j] of relatedPairs) {
+    const a = nodes[i], b = nodes[j];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const force = ATTRACT_K * (dist - REST_LENGTH);
+    const fx = (dx / dist) * force, fy = (dy / dist) * force;
+    a.fx += fx; a.fy += fy; b.fx -= fx; b.fy -= fy;
+  }
+
+  for (const nd of nodes) {
+    nd.fx += -nd.x * CENTER_K;
+    nd.fy += -nd.y * CENTER_K;
+    nd.fx += (Math.random() - 0.5) * JITTER;
+    nd.fy += (Math.random() - 0.5) * JITTER;
+
+    nd.vx = (nd.vx + nd.fx * dt) * DAMPING;
+    nd.vy = (nd.vy + nd.fy * dt) * DAMPING;
+    const speed = Math.hypot(nd.vx, nd.vy);
+    if (speed > MAX_SPEED) { nd.vx = (nd.vx / speed) * MAX_SPEED; nd.vy = (nd.vy / speed) * MAX_SPEED; }
+    nd.x += nd.vx * dt;
+    nd.y += nd.vy * dt;
+  }
+}
+
 export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, onSelectChange }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
@@ -134,12 +195,25 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
   // ── build the simulation from the graph, once per diagnostic ──
   useEffect(() => {
     const n = graph.nodes.length;
-    const nodes = graph.nodes.map((g, i) => ({
-      ...g,
-      angle0: (i / n) * Math.PI * 2,
-      appearAt: i * 215,
-      curOp: 1,
-    }));
+    const nodes = graph.nodes.map((g, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return {
+        ...g,
+        x: Math.cos(a) * 150 + (Math.random() - 0.5) * 20,
+        y: Math.sin(a) * 150 + (Math.random() - 0.5) * 20,
+        vx: 0, vy: 0, fx: 0, fy: 0,
+        appearAt: i * 215,
+        curOp: 1,
+      };
+    });
+    const relatedPairs = (graph.related_pairs || []).filter(
+      ([i, j]) => i >= 0 && i < n && j >= 0 && j < n
+    );
+
+    // pre-settle synchronously so the very first paint isn't the chaotic
+    // initial scatter — physics keeps running afterward for subtle motion
+    for (let s = 0; s < WARMUP_STEPS; s++) stepPhysics(nodes, relatedPairs, 16);
+
     const byDomain = {};
     nodes.forEach((nd, i) => { if (nd.domain && !(nd.domain in byDomain)) byDomain[nd.domain] = i; });
 
@@ -168,11 +242,15 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     let eggFound = false;
     try { eggFound = localStorage.getItem("sprawl_egg_found") === "1"; } catch { /* ignore */ }
 
+    // spread radius of the settled cluster — same role sim.R used to play
+    // (baseZoom, cursor-tether falloff), just measured instead of formula-derived
+    const R = Math.max(120, ...nodes.map((nd) => Math.hypot(nd.x, nd.y))) + NODE_W / 2;
+
     simRef.current = {
-      nodes, edges, nodesDoneAt, trackDoneAt, voidDoneAt,
-      ringAngle: 0, mounted: performance.now(),
+      nodes, edges, relatedPairs, nodesDoneAt, trackDoneAt, voidDoneAt,
+      R, mounted: performance.now(),
       mouse: null, hover: null, selected: null, camera: null,
-      eggFound,
+      eggFound, lastStep: performance.now(),
     };
   }, [graph]);
 
@@ -180,7 +258,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    let staticLayer = null; // offscreen: dot grid + orbit track, screen-space, never panned/zoomed
+    let staticLayer = null; // offscreen: ambient dot grid, screen-space, never panned/zoomed
 
     const buildStaticLayer = () => {
       const { w, h } = dims.current;
@@ -203,36 +281,14 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
 
       const sim = simRef.current;
       if (sim) {
-        const R = orbitRadius(sim.nodes.length, w, h);
-        sim.R = R;
-        // the ring's world-space size is set purely to avoid card overlap;
-        // whether that ring is bigger than the visible canvas is a separate
-        // question, answered by zooming out rather than shrinking the ring
-        // (which is what used to cause the taller 2-line cards to overlap
-        // on short viewports) — camera zoom compensates for viewport fit.
-        const ringSpan = 2 * R + NODE_W + 60;
-        const fit = Math.min(w, h) / ringSpan;
+        // the cluster's world-space spread is set purely by physics; whether
+        // that's bigger than the visible canvas is answered by zooming out
+        // rather than shrinking the cluster
+        const span = 2 * sim.R + 60;
+        const fit = Math.min(w, h) / span;
         sim.baseZoom = Math.min(DEFAULT_ZOOM, Math.max(0.35, fit));
-        const circ = 2 * Math.PI * R;
-        const dotCount = Math.max(24, Math.round(circ / 3));
-        octx.fillStyle = "rgba(40,40,60,.4)";
-        for (let i = 0; i < dotCount; i++) {
-          const a = (i / dotCount) * Math.PI * 2;
-          octx.beginPath();
-          octx.arc(cx + Math.cos(a) * R, cy + Math.sin(a) * R, 1, 0, Math.PI * 2);
-          octx.fill();
-        }
       }
       staticLayer = off;
-    };
-
-    const orbitRadius = (n, w, h) => {
-      // boxes are axis-aligned, not rotated to face outward, so at some
-      // angles a neighbor's height eats into the gap as much as its width
-      // would — budget for both, not just NODE_W, or tall 2-line labels
-      // start overlapping the next card over on higher node counts.
-      const arc = NODE_W + NODE_H + 30;
-      return Math.max(170, (arc * n) / (2 * Math.PI));
     };
 
     const reseat = () => { buildStaticLayer(); };
@@ -261,7 +317,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     const ro = new ResizeObserver(onResizeEvent);
     ro.observe(canvas);
 
-    // ── camera: eased pan/zoom tween, frozen orbit while focused ──
+    // ── camera: eased pan/zoom tween, frozen physics while focused ──
     const currentCamera = (sim, t) => {
       const c = sim.camera;
       const p = c.dur ? clamp01((t - c.start) / c.dur) : 1;
@@ -280,16 +336,14 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     // ── node/edge positions in world space (unaffected by camera) ──
     const computePositions = () => {
       const sim = simRef.current;
-      if (!sim) return { cx: 0, cy: 0, R: 0, pts: [] };
+      if (!sim) return { cx: 0, cy: 0, pts: [] };
       const { w, h } = dims.current;
       const cx = w / 2, cy = h / 2;
-      const R = sim.R || 200;
       const pts = sim.nodes.map((nd) => {
-        const a = nd.angle0 + sim.ringAngle;
-        const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+        const x = cx + nd.x, y = cy + nd.y;
         return { x, y, left: x - NODE_W / 2, top: y - NODE_H / 2 };
       });
-      return { cx, cy, R, pts };
+      return { cx, cy, pts };
     };
 
     const hitTestWorld = (wx, wy) => {
@@ -488,6 +542,14 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx2.fillText(text, mx, my + 4);
     };
 
+    // severity -> base (non-focused) line treatment. HIGH reads as urgent
+    // even before you hover it; MEDIUM/LOW step down in weight and alarm.
+    const SEVERITY_STYLE = {
+      HIGH: { rgb: "239,68,68", width: 2.4, dash: [5, 4], pulse: true },
+      MEDIUM: { rgb: "245,158,11", width: 1.6, dash: [6, 5], pulse: false },
+      LOW: { rgb: "255,255,255", width: 1, dash: [1.5, 4], pulse: false },
+    };
+
     // ── one missing edge: dashed reveal, gap wash, particle pool ──
     const drawEdge = (ctx2, e, a, b, t, active, dimmed) => {
       if (modeRef.current === "potential") { drawEdgePotential(ctx2, a, b, active, dimmed); return; }
@@ -495,7 +557,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       const localT = reduced ? 1 : since - e.startAt;
       if (!reduced && localT < 0) return;
 
-      const targetOp = dimmed ? 0.28 : active ? 1 : 0.5;
+      const targetOp = dimmed ? 0.28 : active ? 1 : 0.55;
       e.curOp = e.curOp == null || reduced ? targetOp : e.curOp + (targetOp - e.curOp) * OPACITY_EASE;
 
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -506,15 +568,18 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       else frac = 0.5 + 0.5 * easeOutCubic(clamp01((localT - e.toMid - e.pause) / e.midToEnd));
 
       const ex = lerp(a.x, b.x, frac), ey = lerp(a.y, b.y, frac);
-      const width = active ? 2.2 : 1.3;
-      // default/dimmed lines read as white (calm, informational — "this
-      // connection is missing"); red is reserved for the one you're
-      // actually focused on right now, same as the active node border
-      const lineRGB = active ? "239,68,68" : "255,255,255";
+      const style = SEVERITY_STYLE[e.severity] || SEVERITY_STYLE.MEDIUM;
+      // default/dimmed lines read at the edge's own severity weight; red is
+      // reserved for the one you're actually focused on right now, same as
+      // the active node border — active always overrides severity styling
+      const lineRGB = active ? "239,68,68" : style.rgb;
+      const width = active ? 2.4 : style.width;
+      const pulse = active ? true : style.pulse;
+      const pulseMul = pulse && !reduced ? 0.75 + 0.25 * Math.sin(t / 420) : 1;
 
       // gap wash: transparent at both ends, brightest at the true midpoint
       const grad = ctx2.createLinearGradient(a.x, a.y, b.x, b.y);
-      const washPeak = (active ? 0.28 : 0.08) * (e.curOp / (active ? 1 : dimmed ? 0.28 : 0.5));
+      const washPeak = (active ? 0.28 : 0.08) * (e.curOp / (active ? 1 : dimmed ? 0.28 : 0.55));
       grad.addColorStop(0, `rgba(${lineRGB},0)`);
       grad.addColorStop(0.5, `rgba(${lineRGB},${clamp01(washPeak).toFixed(3)})`);
       grad.addColorStop(1, `rgba(${lineRGB},0)`);
@@ -522,9 +587,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx2.lineWidth = 15;
       ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(ex, ey); ctx2.stroke();
 
-      ctx2.strokeStyle = `rgba(${lineRGB},${e.curOp.toFixed(3)})`;
+      ctx2.strokeStyle = `rgba(${lineRGB},${(e.curOp * pulseMul).toFixed(3)})`;
       ctx2.lineWidth = width;
-      ctx2.setLineDash([4, 5]);
+      ctx2.setLineDash(active ? [5, 4] : style.dash);
       ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(ex, ey); ctx2.stroke();
       ctx2.setLineDash([]);
 
@@ -550,7 +615,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       const cycle = PARTICLE_TRAVEL + PARTICLE_REST;
       const rBase = (active ? 3.8 : 2.3);
       const op = dimmed ? 0.28 : active ? 1 : 0.55;
-      const rgb = active ? "239,68,68" : "255,255,255";
+      const rgb = active ? "239,68,68" : (SEVERITY_STYLE[e.severity] || SEVERITY_STYLE.MEDIUM).rgb;
       for (const p of e.particles) {
         const raw = since - e.doneAt + p.phase;
         const cycleIndex = Math.floor(raw / cycle);
@@ -593,6 +658,26 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       const x = p.left, y = p.top;
       ctx2.globalAlpha = nd.curOp * grow;
 
+      // critical (3+ data touches): a red pulse glow, on top of the amber
+      // duplicate-capability glow if both apply — two independent warnings
+      const critical = (nd.data_touches || 0) >= 3;
+      if (critical && !reduced) {
+        const pulse = 0.15 + 0.3 * (0.5 + 0.5 * Math.sin(t / 900));
+        ctx2.save();
+        ctx2.shadowColor = RED_A(0.9);
+        ctx2.shadowBlur = 18;
+        chamferPath(ctx2, x, y, NODE_W, NODE_H, CHAMFER);
+        ctx2.strokeStyle = RED_A(pulse);
+        ctx2.lineWidth = 1.5;
+        ctx2.stroke();
+        ctx2.restore();
+      } else if (critical) {
+        chamferPath(ctx2, x, y, NODE_W, NODE_H, CHAMFER);
+        ctx2.strokeStyle = RED_A(0.3);
+        ctx2.lineWidth = 1.5;
+        ctx2.stroke();
+      }
+
       if (nd.duplicated && !reduced) {
         const pulse = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(t / 1100));
         ctx2.save();
@@ -613,7 +698,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       chamferPath(ctx2, x, y, NODE_W, NODE_H, CHAMFER);
       ctx2.fillStyle = "#000";
       ctx2.fill();
-      ctx2.lineWidth = active ? 1.6 : 1;
+      // critical nodes get a bolder border regardless of focus — importance
+      // should read even when nothing is hovered
+      ctx2.lineWidth = active ? 1.6 : critical ? 1.3 : 1;
       ctx2.strokeStyle = active ? RED : "rgba(40,40,60,.8)";
       ctx2.stroke();
       drawBrackets(ctx2, x, y, NODE_W, NODE_H, 12, active ? "rgba(239,68,68,.85)" : "rgba(70,70,95,.9)");
@@ -723,8 +810,8 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2, cy = h / 2;
 
-      // the ambient grid + orbit track stay screen-fixed — a stable
-      // instrument backdrop the diagram zooms into, not part of the "world"
+      // the ambient dot-grid stays screen-fixed — a stable instrument
+      // backdrop the diagram zooms into, not part of the "world"
       const trackOp = reduced ? 1 : clamp01((t - sim.mounted - sim.nodesDoneAt) / 420);
       if (staticLayer && trackOp > 0) {
         ctx.globalAlpha = trackOp;
@@ -742,10 +829,8 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
 
       drawVoid(ctx, cx, cy, t, sim);
 
-      const R = sim.R || 200;
       const pts = sim.nodes.map((nd) => {
-        const a = nd.angle0 + sim.ringAngle;
-        const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+        const x = cx + nd.x, y = cy + nd.y;
         return { x, y, left: x - NODE_W / 2, top: y - NODE_H / 2 };
       });
 
@@ -788,21 +873,35 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     const loop = (t) => {
       if (!running) return;
       const sim = simRef.current;
-      // freeze the orbit while something is focused, so the zoomed view
-      // stays stable and readable instead of chasing a moving target
-      if (sim && !sim.selected) sim.ringAngle += OMEGA * 16.6;
+      if (sim) {
+        // freeze physics while something is focused, so the zoomed view
+        // stays stable and readable instead of chasing a moving target
+        if (!sim.selected) {
+          const dt = t - (sim.lastStep || t);
+          stepPhysics(sim.nodes, sim.relatedPairs, dt);
+        }
+        sim.lastStep = t;
+      }
       draw(t);
       rafRef.current = requestAnimationFrame(loop);
     };
 
     const io = new IntersectionObserver(([entry]) => {
       running = entry.isIntersecting && !document.hidden;
-      if (running && !reduced) { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(loop); }
+      if (running && !reduced) {
+        const sim = simRef.current;
+        if (sim) sim.lastStep = performance.now();
+        cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(loop);
+      }
     }, { threshold: 0.01 });
     io.observe(canvas);
     const onVis = () => {
       running = !document.hidden;
-      if (running && !reduced) { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(loop); }
+      if (running && !reduced) {
+        const sim = simRef.current;
+        if (sim) sim.lastStep = performance.now();
+        cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(loop);
+      }
       else cancelAnimationFrame(rafRef.current);
     };
     document.addEventListener("visibilitychange", onVis);
@@ -819,16 +918,23 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       window.__voidDbg = () => {
         const sim = simRef.current;
         return {
-          R: sim.R, ringAngle: sim.ringAngle, hover: sim.hover, selected: sim.selected,
+          R: sim.R, hover: sim.hover, selected: sim.selected,
           camera: sim.camera, mounted: sim.mounted,
           edges: sim.edges.map((e) => ({ from: e.from, to: e.to, severity: e.severity, label: e.label })),
-          nodes: sim.nodes.map((n) => ({ domain: n.domain, label: n.label, duplicated: n.duplicated, appearAt: n.appearAt })),
+          nodes: sim.nodes.map((n) => ({ domain: n.domain, label: n.label, duplicated: n.duplicated, data_touches: n.data_touches, x: n.x, y: n.y, appearAt: n.appearAt })),
         };
       };
       window.__voidDraw = (t) => draw(t ?? performance.now());
       window.__voidHit = (wx, wy) => hitTestWorld(wx, wy);
       window.__voidClickAt = (mx, my) => onClick({ clientX: mx + canvas.getBoundingClientRect().left, clientY: my + canvas.getBoundingClientRect().top });
       window.__voidTriggerEgg = () => { const sim = simRef.current; if (sim) sim.eggStart = performance.now(); };
+      // manual physics stepper for testing under document.hidden (rAF paused there)
+      window.__voidStepN = (n) => {
+        const sim = simRef.current;
+        if (!sim) return;
+        for (let i = 0; i < (n || 30); i++) if (!sim.selected) stepPhysics(sim.nodes, sim.relatedPairs, 16);
+        draw(performance.now());
+      };
     }
 
     return () => {
