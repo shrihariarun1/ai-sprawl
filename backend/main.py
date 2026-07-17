@@ -7,7 +7,7 @@ import string
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -90,6 +90,16 @@ def analyze(body: AnalyzeIn):
     con.commit()
     con.close()
     return diag
+
+
+@app.get("/api/report/{diagnostic_id}")
+def get_report(diagnostic_id: str):
+    con = db()
+    row = con.execute("SELECT payload FROM runs WHERE diagnostic_id=?", (diagnostic_id,)).fetchone()
+    con.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return json.loads(row["payload"])
 
 
 MIN_BENCHMARK_RUNS = 5

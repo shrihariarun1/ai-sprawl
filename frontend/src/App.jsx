@@ -538,6 +538,21 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // deep-linked shareable report: /report/SM-XXXXXX loads that diagnostic
+  // directly, skipping the paste screen and the mapping animation entirely
+  useEffect(() => {
+    const m = window.location.pathname.match(/\/report\/(SM-[A-Z0-9]+)/i);
+    if (!m) return;
+    fetch(`/api/report/${m[1]}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setDiag(data);
+        setScreen("report");
+      })
+      .catch(() => {});
+  }, []);
+
   function handleTextChange(e) {
     const v = e.target.value;
     if (v.trim().toLowerCase() === CHAOS_TRIGGER) {
@@ -577,6 +592,7 @@ export default function App() {
       setSelected(null);
       setSendForm({ open: false, email: "", company: "", sending: false, sent: false });
       setScreen("report");
+      window.history.pushState(null, "", `/report/${data.diagnostic_id}`);
     }
     setMapping(false);
     setPhase("chaos");
@@ -624,6 +640,18 @@ export default function App() {
 
   function onKey(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run();
+  }
+
+  const [linkCopied, setLinkCopied] = useState(false);
+  async function handleCopyReportLink() {
+    const url = `${window.location.origin}/report/${diag.diagnostic_id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2200);
+    } catch {
+      console.warn("Clipboard write failed — report URL:", url);
+    }
   }
 
   async function handleDownloadShareCard() {
@@ -894,6 +922,9 @@ export default function App() {
             <a className="void-book" href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
               Book 30 min with Shrihari →
             </a>
+            <button className="void-share-btn" onClick={handleCopyReportLink}>
+              {linkCopied ? "Link copied ✓" : "Copy report link 🔗"}
+            </button>
             <button className="void-share-btn" onClick={handleDownloadShareCard}>
               Download results card ⬇
             </button>

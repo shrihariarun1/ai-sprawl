@@ -7,3 +7,8 @@
   to = "https://ai-sprawl.onrender.com/api/:splat"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/report/*"
+  to = "/index.html"
+  status = 200
