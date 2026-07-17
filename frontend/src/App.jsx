@@ -417,6 +417,47 @@ function resolveAudit(diag, selected, defaultEdge) {
 }
 const FINDING_ICON = { MISSING: "●", DUPLICATED: "▲", SHARED: "▲" };
 
+// per-initiative detail: entities touched (+ who else touches them), which
+// other systems duplicate its capability, which missing edges its domain
+// sits on, and a rule-based (not LLM) one-line recommendation
+function buildProjectCards(diag) {
+  const classified = diag.initiatives.filter((i) => i.domain);
+
+  const byCapability = {};
+  classified.forEach((i) => { (byCapability[i.capability] ||= []).push(i.system_label); });
+
+  const byEntity = {};
+  classified.forEach((i) => (i.entities || []).forEach((e) => { (byEntity[e] ||= []).push(i.system_label); }));
+
+  const edgesByDomain = {};
+  (diag.graph.missing_edges || []).forEach((e) => {
+    (edgesByDomain[e.from] ||= []).push(e);
+    (edgesByDomain[e.to] ||= []).push(e);
+  });
+
+  return classified.map((i) => {
+    const entities = (i.entities || []).map((e) => ({
+      name: e,
+      sharedWith: (byEntity[e] || []).filter((l) => l !== i.system_label).length,
+    }));
+    const dupWith = (byCapability[i.capability] || []).filter((l) => l !== i.system_label);
+    const missing = edgesByDomain[i.domain] || [];
+    const topMissing = missing[0];
+    const severity = topMissing?.severity || (dupWith.length ? "MEDIUM" : "LOW");
+
+    let recommendation;
+    if (dupWith.length) {
+      recommendation = `Consolidate into one shared ${i.capability.replace(/_/g, " ")} service instead of ${dupWith.length + 1} separate builds.`;
+    } else if (topMissing) {
+      recommendation = `Establish a live connection between ${toTitleCase(topMissing.from)} and ${toTitleCase(topMissing.to)}.`;
+    } else {
+      recommendation = "Not currently duplicated or isolated — no action needed here.";
+    }
+
+    return { label: i.system_label, domain: i.domain, capability: i.capability, severity, entities, dupWith, missing, recommendation };
+  });
+}
+
 // cursor-reactive panel glow — set directly on the DOM node rather than via
 // React state, so tracking the mouse doesn't trigger a re-render per pixel
 function handlePanelMove(e) {
@@ -456,6 +497,8 @@ export default function App() {
   const [slowJoke, setSlowJoke] = useState(false);
   const [benchmark, setBenchmark] = useState(PLACEHOLDER_BENCHMARK);
   const [mapMode, setMapMode] = useState("chaos"); // chaos | potential — before/after toggle
+  const [showProjectCards, setShowProjectCards] = useState(false);
+  const [expandedCard, setExpandedCard] = useState(0);
   const taRef = useRef(null);
   const gutRef = useRef(null);
   const brandClicks = useRef({ count: 0, last: 0 });
@@ -749,6 +792,7 @@ export default function App() {
   const runDate = new Date(diag.run_at).toISOString().slice(0, 10);
   const diagShown = resolveDiagnostic(diag, hoverInfo || selected, defaultEdge);
   const auditShown = resolveAudit(diag, selected, defaultEdge);
+  const projectCards = buildProjectCards(diag);
 
   return (
     <div className="results">
@@ -853,6 +897,9 @@ export default function App() {
             <button className="void-share-btn" onClick={handleDownloadShareCard}>
               Download results card ⬇
             </button>
+            <button className="void-share-btn" onClick={() => setShowProjectCards(true)}>
+              Initiative details ▾
+            </button>
             {sendForm.sent ? (
               <p className="void-sent">MAP SENT · Shrihari will follow up within 24h.</p>
             ) : sendForm.open ? (
@@ -874,6 +921,62 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {showProjectCards && (
+        <div className="cards-overlay" role="dialog" aria-label="Initiative details">
+          <div className="cards-panel">
+            <div className="cards-panel-head">
+              <h3 className="cards-header">Initiative details</h3>
+              <button className="cards-close" onClick={() => setShowProjectCards(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="cards-panel-body">
+              {projectCards.map((p, i) => {
+                const expanded = expandedCard === i;
+                return (
+                  <div className={"project-card" + (expanded ? " expanded" : "")} key={p.label}>
+                    <div className="card-header" onClick={() => setExpandedCard(expanded ? -1 : i)}>
+                      <span className="chip-dot" style={{ background: DOMAIN_COLORS[p.domain] || "#94a3b8" }} />
+                      <span className="card-name">{toTitleCase(p.label)}</span>
+                      <span className="card-domain-label">{p.domain.toUpperCase()}</span>
+                      <span className={"severity-badge severity-" + p.severity}>{p.severity}</span>
+                      <span className="card-toggle">▾</span>
+                    </div>
+                    {expanded && (
+                      <div className="card-body">
+                        <div className="card-section">
+                          <div className="section-title">Data entities touched</div>
+                          {p.entities.length ? p.entities.map((e) => (
+                            <p key={e.name}>
+                              {toTitleCase(e.name)}
+                              {e.sharedWith > 0 && <span className="shared-with"> (shared with {e.sharedWith} other system{e.sharedWith === 1 ? "" : "s"})</span>}
+                            </p>
+                          )) : <p className="void-audit-empty">None recorded.</p>}
+                        </div>
+                        <div className="card-section">
+                          <div className="section-title">Duplicates identified</div>
+                          {p.dupWith.length ? (
+                            <p>{p.capability.replace(/_/g, " ")} rebuilt by: {p.dupWith.map(toTitleCase).join(", ")}</p>
+                          ) : <p className="void-audit-empty">No duplicated capability.</p>}
+                        </div>
+                        <div className="card-section">
+                          <div className="section-title">Missing connections</div>
+                          {p.missing.length ? p.missing.map((e, j) => (
+                            <p key={j}>{toTitleCase(e.from)} → {toTitleCase(e.to)} ({e.label})</p>
+                          )) : <p className="void-audit-empty">None involving this domain.</p>}
+                        </div>
+                        <div className="card-section recommendation">
+                          <div className="section-title">Recommendation</div>
+                          <p>{p.recommendation}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
