@@ -91,6 +91,33 @@ def analyze(body: AnalyzeIn):
     return diag
 
 
+MIN_BENCHMARK_RUNS = 5
+
+
+@app.get("/api/benchmark")
+def benchmark():
+    con = db()
+    rows = con.execute("SELECT payload FROM runs").fetchall()
+    con.close()
+    n = len(rows)
+    if n < MIN_BENCHMARK_RUNS:
+        return {"available": False, "runs": n}
+
+    totals = {"problem_domains": 0, "rebuilt_capabilities": 0, "independent_data_touches": 0}
+    for row in rows:
+        counts = json.loads(row["payload"]).get("counts", {})
+        for k in totals:
+            totals[k] += counts.get(k, 0)
+
+    return {
+        "available": True,
+        "runs": n,
+        "avg_problem_domains": round(totals["problem_domains"] / n, 1),
+        "avg_rebuilt_capabilities": round(totals["rebuilt_capabilities"] / n, 1),
+        "avg_independent_data_touches": round(totals["independent_data_touches"] / n, 1),
+    }
+
+
 def _outbox(email, subject, body):
     fn = OUTBOX / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{email}.txt"
     fn.write_text(f"TO: {email}\nSUBJECT: {subject}\n\n{body}")

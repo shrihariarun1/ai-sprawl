@@ -44,6 +44,88 @@ function spawnConfetti(x, y) {
   }
 }
 
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// renders a branded 1200x630 summary of a diagnostic for download/sharing
+function buildShareCardBlob(diag) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 630;
+  const ctx = canvas.getContext("2d");
+  const mono = "'IBM Plex Mono', ui-monospace, monospace";
+
+  ctx.fillStyle = "#0a0a0e";
+  ctx.fillRect(0, 0, 1200, 630);
+  ctx.fillStyle = "#E5342A";
+  ctx.fillRect(0, 0, 10, 630);
+
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#E5342A";
+  ctx.font = `700 26px ${mono}`;
+  ctx.fillText("Kaara", 72, 90);
+  ctx.fillStyle = "#8a8a98";
+  ctx.font = `18px ${mono}`;
+  ctx.fillText("AI SPRAWL MAP", 182, 90);
+
+  ctx.fillStyle = "#8a8a98";
+  ctx.font = `14px ${mono}`;
+  ctx.fillText(
+    `${diag.diagnostic_id} · ${new Date(diag.run_at).toISOString().slice(0, 10)} · ${diag.counts.initiatives} INITIATIVES`,
+    72, 128
+  );
+  ctx.fillStyle = "#E5342A";
+  ctx.font = `700 14px ${mono}`;
+  ctx.fillText(diag.status, 72, 152);
+
+  const stats = [
+    [diag.counts.problem_domains, "PROBLEM DOMAINS"],
+    [diag.counts.rebuilt_capabilities, "REBUILT CAPABILITIES"],
+    [diag.counts.independent_data_touches, "INDEPENDENT DATA TOUCHES"],
+    [diag.findings.length, "FINDINGS"],
+  ];
+  const statW = 264;
+  stats.forEach(([n, label], i) => {
+    const x = 72 + i * statW;
+    ctx.fillStyle = "#ececec";
+    ctx.font = `700 46px ${mono}`;
+    ctx.fillText(String(n), x, 250);
+    ctx.fillStyle = "#8a8a98";
+    ctx.font = `12px ${mono}`;
+    wrapCanvasText(ctx, label, statW - 24).forEach((l, j) => ctx.fillText(l, x, 276 + j * 16));
+  });
+
+  const topFinding = diag.findings.find((f) => f.evidence?.severity === "HIGH") || diag.findings[0];
+  if (topFinding) {
+    ctx.fillStyle = "#8a8a98";
+    ctx.font = `14px ${mono}`;
+    ctx.fillText(`TOP FINDING · ${topFinding.type}`, 72, 380);
+    ctx.fillStyle = "#ececec";
+    ctx.font = `700 30px ${mono}`;
+    wrapCanvasText(ctx, topFinding.title, 1050).slice(0, 3).forEach((l, j) => ctx.fillText(l, 72, 420 + j * 38));
+  }
+
+  ctx.fillStyle = "#8a8a98";
+  ctx.font = `16px ${mono}`;
+  ctx.fillText("Mapped with the Kaara AI Sprawl Map — free, in under a minute", 72, 588);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
 const STACKS = {
   "Banking stack": {
     meta: "6 SYSTEMS · BFSI",
@@ -98,6 +180,8 @@ const HINTS = [
   [/churn|retention/i, "marketing"],
   [/marketing|content gen|copywrit|campaign/i, "marketing"],
   [/forecast|inventory|demand|pricing|\bprice\b/i, "operations"],
+  [/\bthreat\b|cyber|\bsiem\b|phishing|intrusion|malware/i, "security"],
+  [/recruit|hiring|resume screen|applicant track|candidate screen/i, "hr"],
 ];
 
 function domainOf(label) {
@@ -257,6 +341,7 @@ export default function App() {
   const [sendForm, setSendForm] = useState({ open: false, email: "", company: "", sending: false, sent: false, error: "" });
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [slowJoke, setSlowJoke] = useState(false);
+  const [benchmark, setBenchmark] = useState(null);
   const taRef = useRef(null);
   const gutRef = useRef(null);
   const brandClicks = useRef({ count: 0, last: 0 });
@@ -286,6 +371,14 @@ export default function App() {
     const id = setTimeout(() => setSlowJoke(true), 3600);
     return () => clearTimeout(id);
   }, [mapping]);
+
+  // portfolio-wide benchmark stat, shown only once enough runs exist to be meaningful
+  useEffect(() => {
+    fetch("/api/benchmark")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data?.available) setBenchmark(data); })
+      .catch(() => {});
+  }, []);
 
   function handleTextChange(e) {
     const v = e.target.value;
@@ -375,6 +468,16 @@ export default function App() {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run();
   }
 
+  async function handleDownloadShareCard() {
+    const blob = await buildShareCardBlob(diag);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sprawl-map-${diag.diagnostic_id}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (screen === "paste")
     return (
       <main className="hero" data-mapping={mapping ? "true" : "false"}>
@@ -397,6 +500,13 @@ export default function App() {
               Paste every AI, automation, and data initiative you can think of, one per line.
               We'll map the whole portfolio at once.
             </p>
+            {benchmark && (
+              <p className="hero-benchmark">
+                Across {benchmark.runs} portfolios mapped so far, the average has{" "}
+                {benchmark.avg_rebuilt_capabilities} rebuilt capabilities and{" "}
+                {benchmark.avg_independent_data_touches} independent data touches.
+              </p>
+            )}
           </section>
 
           <section className="hero-panel" aria-label="Your initiatives"
@@ -437,9 +547,10 @@ export default function App() {
 
             <div className="row">
               <div className="menu-anchor">
-                <button className="ghost" aria-haspopup="true" aria-expanded={menu}
+                {!lines.length && <span className="try-sample-hint">New here?</span>}
+                <button className={"ghost" + (lines.length ? "" : " ghost-accent")} aria-haspopup="true" aria-expanded={menu}
                   onClick={() => setMenu(!menu)}>
-                  Load an example stack {menu ? "▴" : "▾"}
+                  {lines.length ? "Load an example stack" : "See it work with a sample stack"} {menu ? "▴" : "▾"}
                 </button>
                 {menu && (
                   <div className="menu" role="menu">
@@ -457,14 +568,14 @@ export default function App() {
             </div>
 
             <p className="hint">
-              Nothing you paste is stored or sent anywhere until you choose to.
-              Generic descriptions work fine. No project codenames needed.
+              Generic descriptions work fine — no project codenames needed.
+              We don't sell or share what you paste with anyone.
             </p>
             <button className="primary big-cta" onClick={run} disabled={!lines.length || mapping}>
               {mapping ? "Mapping…" : "Map my portfolio →"}
             </button>
             <p className="hint faint">
-              The analysis runs once on your list and isn't saved. We only keep your details if you ask for a team brief.
+              Your list is stored to generate this diagnostic. We only ask for your email if you want a team brief or a working session.
             </p>
           </section>
         </div>
@@ -561,6 +672,9 @@ export default function App() {
             <a className="void-book" href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
               Book 30 min with Shrihari →
             </a>
+            <button className="void-share-btn" onClick={handleDownloadShareCard}>
+              Download results card ⬇
+            </button>
             {sendForm.sent ? (
               <p className="void-sent">MAP SENT · Shrihari will follow up within 24h.</p>
             ) : sendForm.open ? (

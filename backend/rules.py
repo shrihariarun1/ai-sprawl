@@ -23,6 +23,8 @@ RULES = [
     (r"marketing|content gen|copywrit|campaign",         "marketing",  "content_generation",["customer", "product"]),
     (r"forecast|inventory|demand",                       "operations", "forecasting",       ["product", "transaction"]),
     (r"pricing|\bprice\b",                               "operations", "forecasting",       ["product", "transaction"]),
+    (r"\bthreat\b|cyber|\bsiem\b|phishing|intrusion|malware", "security", "anomaly_detection", ["security_event"]),
+    (r"recruit|hiring|resume screen|applicant track|candidate screen", "hr", "doc_parsing",  ["employee"]),
 ]
 
 CONF_RULES = 0.95      # rule-matched classification
@@ -41,6 +43,8 @@ DOMAIN_ENTITIES = {
     "documents": ["document"],
     "marketing": ["customer"],
     "operations": ["product", "transaction"],
+    "security": ["security_event"],
+    "hr": ["employee"],
 }
 
 # known cross-domain gaps that should exist but usually don't
@@ -53,9 +57,10 @@ MISSING_EDGES = [
     ("marketing", "support",   "no churn signal"),
     ("operations", "marketing", "no demand signal"),
     ("fraud",    "analytics",  "batch-only feed"),
+    ("security", "fraud",      "no shared signal"),
 ]
 
-SEVERITY_HIGH_DOMAINS = {"fraud", "compliance"}
+SEVERITY_HIGH_DOMAINS = {"fraud", "compliance", "security"}
 
 # failure-mode library for MISSING reasoning, picked by domain pair
 FAILURE_MODES = {
@@ -67,6 +72,7 @@ FAILURE_MODES = {
     ("marketing", "support"): "support works tickets from customers marketing already flagged as churn risks",
     ("operations", "marketing"): "campaigns promote products operations is about to run out of",
     ("fraud", "analytics"): "executive dashboards report yesterday's fraud while today's is still in flight",
+    ("security", "fraud"): "a security incident tied to an account isn't reflected in that account's fraud score, and a confirmed fraud case doesn't automatically open a security investigation",
 }
 
 

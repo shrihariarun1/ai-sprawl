@@ -95,6 +95,10 @@ h1 {
 }
 .hint { color:var(--dim); font-size:14.5px; line-height:1.65; max-width:52ch; }
 .hint.faint { font-size:12.5px; color:var(--faint); }
+.hero-benchmark {
+  font-family:var(--mono); font-size:12px; color:var(--faint); line-height:1.6; max-width:46ch;
+  margin-top:14px; padding-left:12px; border-left:2px solid rgba(229,52,42,.4);
+}
 .label { font-family:var(--mono); font-size:10.5px; font-weight:500; letter-spacing:.26em; color:var(--faint); margin:0 0 8px; }
 
 /* ── hero panel (instrument) ─────────────────────────────
@@ -173,7 +177,10 @@ button:disabled { opacity:.4; cursor:not-allowed; }
 .big-cta { width:100%; font-size:16px; padding:15px 28px; margin:16px 0 12px; box-shadow:0 12px 32px rgba(229,52,42,.2); }
 
 /* example-stack menu */
-.menu-anchor { position:relative; }
+.menu-anchor { position:relative; display:flex; align-items:center; gap:10px; }
+.try-sample-hint { font-family:var(--mono); font-size:12px; color:var(--dim); }
+.ghost-accent { border-color:rgba(229,52,42,.55); color:#f0d9d7; }
+.ghost-accent:hover { border-color:var(--red); background:rgba(229,52,42,.08); }
 .menu {
   position:absolute; bottom:calc(100% + 10px); left:0; min-width:300px;
   background:var(--card2); border:1px solid var(--line-strong); border-radius:12px;
@@ -355,11 +362,11 @@ button:disabled { opacity:.4; cursor:not-allowed; }
   padding:12px 18px; text-decoration:none; transition:background .25s ease;
 }
 .void-book:hover { background:#ef4238; }
-.void-send-btn {
+.void-send-btn, .void-share-btn {
   display:block; width:100%; text-align:center; font-family:var(--sans); font-size:14px; color:#8a8a92;
   background:transparent; border:1px solid rgba(40,40,60,.8); border-radius:6px; padding:11px 18px;
 }
-.void-send-btn:hover { color:#c8c8d0; border-color:rgba(60,60,84,.9); }
+.void-send-btn:hover, .void-share-btn:hover { color:#c8c8d0; border-color:rgba(60,60,84,.9); }
 .void-send-form { display:flex; flex-direction:column; gap:8px; }
 .void-send-form input {
   background:#000; border:1px solid rgba(40,40,60,.8); border-radius:6px;
