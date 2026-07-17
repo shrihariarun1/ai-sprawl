@@ -103,6 +103,17 @@ def _dep_conf(items):
 
 # ── evidence builders (ported from evidence_reference.py) ──────────────
 
+# Cost estimates are a disclosed rule-of-thumb, never presented as measured.
+# Every figure below is surfaced to the user with its basis string attached,
+# and the diagnostic as a whole carries a top-level disclosure (see derive()).
+COST_RATES = {"duplicated_per_system": 40_000, "shared_per_system": 30_000,
+              "missing_high": 35_000, "missing_medium": 18_000, "bus_flat": 50_000}
+COST_DISCLOSURE = ("Cost figures use disclosed industry rule-of-thumb rates ($40K per "
+                    "duplicated-capability system/year, $30K per shared-data system/year, "
+                    "$35K per HIGH-severity gap/year, $18K per MEDIUM, $50K flat for the "
+                    "missing signal bus) — not measured data from your systems.")
+
+
 def duplicated_evidence(cap, system_items):
     meta = [{"label": i["system_label"], "domain": i["domain"],
              "matched_on": i["matched_on"], "classified_by": i["classified_by"]}
@@ -114,18 +125,24 @@ def duplicated_evidence(cap, system_items):
     reasoning.append(
         f"{len(meta)} independent implementations of {cap.replace('_', ' ')} -> duplicated build and maintenance cost"
     )
+    rate = COST_RATES["duplicated_per_system"]
+    cost = rate * len(meta)
     return {
         "capability": cap,
         "systems": meta,
         "reasoning": reasoning,
         "severity": "MEDIUM",
         "confidence": round(_dep_conf(system_items), 2),
+        "cost_estimate": cost,
+        "cost_basis": f"${rate:,}/year per rebuilt capability (rule-of-thumb) x {len(meta)} systems",
     }
 
 
 def shared_evidence(entity, system_items):
     labels = sorted({i["system_label"] for i in system_items})
     n = len(labels)
+    rate = COST_RATES["shared_per_system"]
+    cost = rate * n
     return {
         "entity": entity,
         "systems": labels,
@@ -136,6 +153,8 @@ def shared_evidence(entity, system_items):
         ],
         "severity": "HIGH" if n >= 4 else "MEDIUM",
         "confidence": round(min(0.9, _dep_conf(system_items)), 2),
+        "cost_estimate": cost,
+        "cost_basis": f"${rate:,}/year integration overhead (rule-of-thumb) x {n} systems touching {entity}",
     }
 
 
@@ -144,6 +163,7 @@ def missing_evidence(a, b, from_items, to_items):
         f"decisions in {b} run without {a} signals at decision time"
     )
     sev = "HIGH" if (a in SEVERITY_HIGH_DOMAINS or b in SEVERITY_HIGH_DOMAINS) else "MEDIUM"
+    cost = COST_RATES["missing_high"] if sev == "HIGH" else COST_RATES["missing_medium"]
     return {
         "from_domain": a,
         "to_domain": b,
@@ -156,12 +176,15 @@ def missing_evidence(a, b, from_items, to_items):
         ],
         "severity": sev,
         "confidence": round(min(0.85, _dep_conf(from_items + to_items)), 2),
+        "cost_estimate": cost,
+        "cost_basis": f"${cost:,}/year integration debt for a {sev.lower()}-severity gap (rule-of-thumb)",
     }
 
 
 def bus_evidence(classified, domains):
     n = len(classified)
     sev = "HIGH" if (domains & SEVERITY_HIGH_DOMAINS) else "MEDIUM"
+    cost = COST_RATES["bus_flat"]
     return {
         "systems": sorted(i["system_label"] for i in classified),
         "reasoning": [
@@ -171,6 +194,8 @@ def bus_evidence(classified, domains):
         ],
         "severity": sev,
         "confidence": round(min(0.9, _dep_conf(classified)), 2),
+        "cost_estimate": cost,
+        "cost_basis": f"${cost:,}/year in missed cross-system optimization (flat rule-of-thumb estimate)",
     }
 
 
@@ -253,6 +278,7 @@ def derive(items):
 
     rebuilt = len(duplicated_caps)
     status = "FRAGMENTED" if (rebuilt or present_edges) else "CONNECTED"
+    total_cost = sum(f["evidence"].get("cost_estimate", 0) for f in findings)
 
     return {
         "items": items,
@@ -269,11 +295,14 @@ def derive(items):
                 "domain": i["domain"],
                 "duplicated": i["capability"] in duplicated_caps,
                 "contended": any(e in contended_entities for e in i["entities"]),
+                "data_touches": max((len(entity_items[e]) for e in i["entities"]), default=1),
             } for i in classified],
             "missing_edges": present_edges,
             "missing_layer": True,
         },
         "findings": findings,
+        "total_cost_estimate": total_cost,
+        "cost_disclosure": COST_DISCLOSURE,
     }
 
 

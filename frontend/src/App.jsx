@@ -417,6 +417,15 @@ function resolveAudit(diag, selected, defaultEdge) {
 }
 const FINDING_ICON = { MISSING: "●", DUPLICATED: "▲", SHARED: "▲" };
 
+function findingFix(f) {
+  if (f.type === "DUPLICATED") return `Consolidate into one shared ${f.evidence.capability.replace(/_/g, " ")} service.`;
+  if (f.type === "SHARED") return `Establish a coordination layer (shared service or event feed) for ${f.evidence.entity} data.`;
+  if (f.type === "MISSING" && f.evidence.from_domain) {
+    return `Establish a live connection between ${toTitleCase(f.evidence.from_domain)} and ${toTitleCase(f.evidence.to_domain)}.`;
+  }
+  return "Implement a shared feature store or signal bus.";
+}
+
 // per-initiative detail: entities touched (+ who else touches them), which
 // other systems duplicate its capability, which missing edges its domain
 // sits on, and a rule-based (not LLM) one-line recommendation
@@ -822,6 +831,11 @@ export default function App() {
   const diagShown = resolveDiagnostic(diag, hoverInfo || selected, defaultEdge);
   const auditShown = resolveAudit(diag, selected, defaultEdge);
   const projectCards = buildProjectCards(diag);
+  const severityCounts = diag.findings.reduce((acc, f) => {
+    const s = f.evidence?.severity;
+    if (s) acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="results">
@@ -859,16 +873,23 @@ export default function App() {
           ) : auditShown.findings.length ? (
             <div className="void-audit-findings">
               {auditShown.findings.map((f, i) => (
-                <div className="void-audit-finding" key={i}>
-                  <span className={"void-audit-tag " + f.type.toLowerCase()}>{FINDING_ICON[f.type]}</span>
-                  <div>
-                    <div className="finding-title-row">
-                      {f.evidence?.severity && (
-                        <span className={"severity-badge severity-" + f.evidence.severity}>{f.evidence.severity}</span>
-                      )}
-                      <p className="void-audit-finding-title">{f.title}</p>
-                    </div>
-                    <p className="void-audit-finding-detail">{f.detail}</p>
+                <div className={"finding-card severity-border-" + f.evidence?.severity} key={i}>
+                  <div className="finding-card-head">
+                    <span className={"void-audit-tag " + f.type.toLowerCase()}>{FINDING_ICON[f.type]}</span>
+                    {f.evidence?.severity && (
+                      <span className={"severity-badge severity-" + f.evidence.severity}>{f.evidence.severity}</span>
+                    )}
+                    <p className="void-audit-finding-title">{f.title}</p>
+                  </div>
+                  <div className="finding-card-body">
+                    <p><span className="fc-label">Impact</span> {f.detail}</p>
+                    {f.evidence?.cost_estimate > 0 && (
+                      <p>
+                        <span className="fc-label">Cost</span>{" "}
+                        <span className="fc-cost">~${f.evidence.cost_estimate.toLocaleString()}/year</span>
+                      </p>
+                    )}
+                    <p><span className="fc-label">Fix</span> <span className="fc-fix">{findingFix(f)}</span></p>
                   </div>
                 </div>
               ))}
@@ -911,6 +932,15 @@ export default function App() {
                   <span>Domain diversity {diag.sprawl_score.components.domain_diversity}%</span>
                 </div>
               </div>
+            </div>
+          )}
+          {diag.total_cost_estimate > 0 && (
+            <div className="cost-summary">
+              <p className="cost-total">~${diag.total_cost_estimate.toLocaleString()}/year estimated fragmentation cost</p>
+              <p className="cost-severity-counts">
+                {severityCounts.HIGH || 0} HIGH · {severityCounts.MEDIUM || 0} MEDIUM · {severityCounts.LOW || 0} LOW
+              </p>
+              <p className="cost-disclosure">{diag.cost_disclosure}</p>
             </div>
           )}
           <div className="void-consequence" data-active={diagShown.active ? "true" : "false"}>

@@ -82,6 +82,8 @@ def analyze(body: AnalyzeIn):
         "graph": part["graph"],
         "findings": part["findings"],
         "sprawl_score": rules.sprawl_score(part["counts"], part["graph"]["missing_edges"]),
+        "total_cost_estimate": part["total_cost_estimate"],
+        "cost_disclosure": part["cost_disclosure"],
     }
     diag = llm.write_prose(diag)
 
