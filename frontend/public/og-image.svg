@@ -1,8 +1,8 @@
 <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="glow" cx="18%" cy="12%" r="75%">
-      <stop offset="0%" stop-color="#1a1a22" />
-      <stop offset="100%" stop-color="#0a0a0e" />
+      <stop offset="0%" stop-color="#141c2e" />
+      <stop offset="100%" stop-color="#0A0E1A" />
     </radialGradient>
     <pattern id="grain" width="22" height="22" patternUnits="userSpaceOnUse">
       <circle cx="1" cy="1" r="1" fill="rgba(255,255,255,0.06)" />
@@ -10,18 +10,18 @@
   </defs>
   <rect width="1200" height="630" fill="url(#glow)" />
   <rect width="1200" height="630" fill="url(#grain)" />
-  <rect x="0" y="0" width="10" height="630" fill="#E5342A" />
+  <rect x="0" y="0" width="10" height="630" fill="#F59E0B" />
 
-  <text x="72" y="108" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="26" font-weight="700" fill="#E5342A">Kaara</text>
-  <text x="182" y="108" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="18" letter-spacing="3" fill="#8a8a98">AI SPRAWL MAP</text>
+  <text x="72" y="108" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="26" font-weight="700" fill="#FFFFFF">Kaara</text>
+  <text x="182" y="108" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="18" letter-spacing="3" fill="#94a3b8">AI SPRAWL MAP</text>
 
-  <text x="72" y="260" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="58" font-weight="700" fill="#ececec">
+  <text x="72" y="260" font-family="Inter, ui-sans-serif, sans-serif" font-size="58" font-weight="700" fill="#FFFFFF">
     <tspan x="72" dy="0">You have more AI</tspan>
     <tspan x="72" dy="68">projects than you think.</tspan>
   </text>
 
-  <text x="72" y="400" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="24" fill="#b8b8c4">Paste your initiatives. See what's duplicated,</text>
-  <text x="72" y="434" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="24" fill="#b8b8c4">disconnected, and colliding — in under a minute.</text>
+  <text x="72" y="400" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="24" fill="#94a3b8">Paste your initiatives. See what's duplicated,</text>
+  <text x="72" y="434" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="24" fill="#94a3b8">disconnected, and colliding — in under a minute.</text>
 
-  <text x="72" y="560" font-family="ui-monospace, 'IBM Plex Mono', monospace" font-size="16" letter-spacing="2" fill="#8a8a98">FREE · 90 SECONDS · NO SIGNUP</text>
+  <text x="72" y="560" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="16" letter-spacing="2" fill="#94a3b8">FREE · 90 SECONDS · NO SIGNUP</text>
 </svg>

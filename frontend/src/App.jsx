@@ -30,7 +30,7 @@ const PLACEHOLDER_BENCHMARK = {
   avg_problem_domains: 4.2, avg_rebuilt_capabilities: 2.3, avg_independent_data_touches: 14.6,
 };
 
-const CONFETTI_COLORS = ["#e5342a", "#ececec", "#b47814"];
+const CONFETTI_COLORS = ["#ef4444", "#ececec", "#f59e0b"];
 function spawnConfetti(x, y) {
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   for (let i = 0; i < 26; i++) {
@@ -77,9 +77,12 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+const STATUS_COLOR = { FRAGMENTED: "#ef4444", CONNECTED: "#10b981" };
+
 // small decorative node-cluster motif echoing the real fragmentation map —
-// solid lines between connected nodes, one dashed red line for the "missing" one
-function drawShareCardMotif(ctx, x, y) {
+// solid lines between connected nodes, one dashed line for the "missing" one
+// (colored red for a fragmented result, green for a connected one)
+function drawShareCardMotif(ctx, x, y, accent) {
   const pts = [[0, 0], [86, -34], [150, 30], [70, 78], [10, 132]];
   const edges = [[0, 1], [1, 2], [3, 4], [0, 4]];
   ctx.save();
@@ -92,7 +95,7 @@ function drawShareCardMotif(ctx, x, y) {
     ctx.lineTo(pts[b][0], pts[b][1]);
     ctx.stroke();
   });
-  ctx.strokeStyle = "rgba(229,52,42,.85)";
+  ctx.strokeStyle = accent;
   ctx.setLineDash([6, 6]);
   ctx.beginPath();
   ctx.moveTo(pts[2][0], pts[2][1]);
@@ -102,7 +105,7 @@ function drawShareCardMotif(ctx, x, y) {
   pts.forEach(([px, py], i) => {
     ctx.beginPath();
     ctx.arc(px, py, 6, 0, Math.PI * 2);
-    ctx.fillStyle = i === 2 || i === 3 ? "#E5342A" : "#c8c8d0";
+    ctx.fillStyle = i === 2 || i === 3 ? accent : "#c8c8d0";
     ctx.fill();
   });
   ctx.restore();
@@ -121,10 +124,12 @@ async function buildShareCardBlob(diag) {
   canvas.width = 1200;
   canvas.height = 630;
   const ctx = canvas.getContext("2d");
-  const mono = "'IBM Plex Mono', ui-monospace, monospace";
-  const sans = "'Space Grotesk', 'Segoe UI', system-ui, sans-serif";
+  const mono = "'JetBrains Mono', ui-monospace, monospace";
+  const sans = "'Inter', 'Segoe UI', system-ui, sans-serif";
 
-  ctx.fillStyle = "#0a0a0e";
+  const accent = STATUS_COLOR[diag.status] || "#f59e0b";
+
+  ctx.fillStyle = "#0A0E1A";
   ctx.fillRect(0, 0, 1200, 630);
 
   // dot-grain texture, matching the site's background treatment
@@ -137,21 +142,21 @@ async function buildShareCardBlob(diag) {
     }
   }
 
-  // soft corner glow
+  // soft corner glow — ambient brand accent, always amber regardless of status
   const glow = ctx.createRadialGradient(120, 60, 0, 120, 60, 520);
-  glow.addColorStop(0, "rgba(229,52,42,.10)");
-  glow.addColorStop(1, "rgba(229,52,42,0)");
+  glow.addColorStop(0, "rgba(245,158,11,.10)");
+  glow.addColorStop(1, "rgba(245,158,11,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 1200, 630);
 
-  ctx.fillStyle = "#E5342A";
+  ctx.fillStyle = "#f59e0b";
   ctx.fillRect(0, 0, 10, 630);
 
   ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#E5342A";
+  ctx.fillStyle = "#ffffff";
   ctx.font = `700 27px ${sans}`;
   ctx.fillText("Kaara", 72, 92);
-  ctx.fillStyle = "#8a8a98";
+  ctx.fillStyle = "#94a3b8";
   ctx.font = `16px ${mono}`;
   ctx.fillText("AI SPRAWL MAP", 180, 92);
 
@@ -162,24 +167,24 @@ async function buildShareCardBlob(diag) {
     72, 128
   );
 
-  // status pill
+  // status pill — red for a fragmented result, green for a connected one
   ctx.font = `700 13px ${mono}`;
   const pillLabel = diag.status;
   const pillW = ctx.measureText(pillLabel).width + 36;
   roundRectPath(ctx, 72, 144, pillW, 30, 15);
-  ctx.strokeStyle = "rgba(229,52,42,.55)";
+  ctx.strokeStyle = accent + "8c";
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.fillStyle = "#ff6b60";
+  ctx.fillStyle = accent;
   ctx.fillText(pillLabel, 72 + 18, 164);
 
-  ctx.fillStyle = "#ececec";
+  ctx.fillStyle = "#ffffff";
   ctx.font = `700 46px ${sans}`;
   wrapCanvasText(ctx, HEADLINE_BY_STATUS[diag.status] || "Here's where your AI portfolio stands.", 760)
     .slice(0, 2)
     .forEach((l, j) => ctx.fillText(l, 72, 260 + j * 54));
 
-  drawShareCardMotif(ctx, 900, 210);
+  drawShareCardMotif(ctx, 900, 210, accent);
 
   const stats = [
     [diag.counts.problem_domains, "PROBLEM DOMAINS"],
@@ -284,6 +289,13 @@ const HINTS = [
   [/\bthreat\b|cyber|\bsiem\b|phishing|intrusion|malware/i, "security"],
   [/recruit|hiring|resume screen|applicant track|candidate screen/i, "hr"],
 ];
+
+// domain -> accent color, mirrors ResultsCanvas.jsx's DOMAIN_COLORS
+const DOMAIN_COLORS = {
+  fraud: "#ef4444", compliance: "#3b82f6", support: "#10b981", lending: "#f59e0b",
+  analytics: "#8b5cf6", identity: "#ec4899", marketing: "#f97316", claims: "#fde047",
+  documents: "#94a3b8", operations: "#06b6d4", security: "#f43f5e", hr: "#a3e635",
+};
 
 function domainOf(label) {
   const hit = HINTS.find(([re]) => re.test(label));
@@ -641,7 +653,12 @@ export default function App() {
               </div>
               <div className="editor-status">
                 <div className="chips">
-                  {domains.map((d) => <span className="chip" key={d}>{d.toUpperCase()}</span>)}
+                  {domains.map((d) => (
+                    <span className="chip" key={d}>
+                      <i className="chip-dot" style={{ background: DOMAIN_COLORS[d] || "#94a3b8" }} />
+                      {d.toUpperCase()}
+                    </span>
+                  ))}
                   {unknown > 0 && <span className="chip dim">{unknown} UNCLASSIFIED → LLM</span>}
                   {!lines.length && <span className="chip dim">DOMAINS DETECTED LIVE AS YOU TYPE</span>}
                 </div>

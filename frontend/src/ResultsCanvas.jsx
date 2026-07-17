@@ -17,8 +17,17 @@ import { useEffect, useRef, useState } from "react";
   there is only ever one source of truth for "where is everything right now."
 */
 
-const RED = "#e5342a";
-const AMBER = (a) => `rgba(180,120,20,${a})`;
+const RED = "#ef4444";
+const GREEN = "#10b981";
+const AMBER = (a) => `rgba(245,158,11,${a})`;
+
+// domain -> node accent color, matching the diagnostic-dashboard palette
+const DOMAIN_COLORS = {
+  fraud: "#ef4444", compliance: "#3b82f6", support: "#10b981", lending: "#f59e0b",
+  analytics: "#8b5cf6", identity: "#ec4899", marketing: "#f97316", claims: "#fde047",
+  documents: "#94a3b8", operations: "#06b6d4", security: "#f43f5e", hr: "#a3e635",
+};
+const domainColor = (d) => DOMAIN_COLORS[d] || "#94a3b8";
 const OMEGA = 0.00013;          // rad/frame — a further ~0.7x on top of the last pass
 const NODE_W = 220, NODE_H = 70, CHAMFER = 8;
 const PARTICLES_PER_EDGE = 4;
@@ -421,12 +430,12 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
           const r = innerR + phase * 44;
           const a = (1 - phase) * 0.22;
           if (a <= 0.005) continue;
-          ctx2.strokeStyle = `rgba(229,52,42,${a.toFixed(3)})`;
+          ctx2.strokeStyle = `rgba(239,68,68,${a.toFixed(3)})`;
           ctx2.lineWidth = 1;
           ctx2.beginPath(); ctx2.arc(cx, cy, r, 0, Math.PI * 2); ctx2.stroke();
         }
       } else {
-        ctx2.strokeStyle = "rgba(229,52,42,.14)";
+        ctx2.strokeStyle = "rgba(239,68,68,.14)";
         ctx2.lineWidth = 1;
         ctx2.beginPath(); ctx2.arc(cx, cy, innerR + 20, 0, Math.PI * 2); ctx2.stroke();
       }
@@ -434,14 +443,14 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       ctx2.fillStyle = "#04020a";
       ctx2.beginPath(); ctx2.arc(cx, cy, innerR, 0, Math.PI * 2); ctx2.fill();
       ctx2.setLineDash([3, 4]);
-      ctx2.strokeStyle = "rgba(229,52,42,.3)";
+      ctx2.strokeStyle = "rgba(239,68,68,.3)";
       ctx2.lineWidth = 1;
       ctx2.beginPath(); ctx2.arc(cx, cy, innerR, 0, Math.PI * 2); ctx2.stroke();
       ctx2.setLineDash([]);
 
       if (born > 0.6) {
-        ctx2.fillStyle = "rgba(224,90,80,.9)";
-        ctx2.font = "9px 'IBM Plex Mono', ui-monospace, monospace";
+        ctx2.fillStyle = "rgba(239,68,68,.9)";
+        ctx2.font = "9px 'JetBrains Mono', ui-monospace, monospace";
         ctx2.textAlign = "center";
         ctx2.fillText("NO SHARED", cx, cy - 4);
         ctx2.fillText("SIGNAL BUS", cx, cy + 9);
@@ -469,7 +478,7 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       // default/dimmed lines read as white (calm, informational — "this
       // connection is missing"); red is reserved for the one you're
       // actually focused on right now, same as the active node border
-      const lineRGB = active ? "229,52,42" : "255,255,255";
+      const lineRGB = active ? "239,68,68" : "255,255,255";
 
       // gap wash: transparent at both ends, brightest at the true midpoint
       const grad = ctx2.createLinearGradient(a.x, a.y, b.x, b.y);
@@ -494,12 +503,12 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
 
       if (doneForParticles) {
         const labelOp = dimmed ? 0.4 : active ? 1 : 0.8;
-        ctx2.font = "9.5px 'IBM Plex Mono', ui-monospace, monospace";
+        ctx2.font = "9.5px 'JetBrains Mono', ui-monospace, monospace";
         const text = e.label;
         const tw = ctx2.measureText(text).width;
         ctx2.fillStyle = "#000";
         ctx2.fillRect(mx - tw / 2 - 7, my - 10, tw + 14, 18);
-        ctx2.fillStyle = active ? "#ff5c50" : `rgba(255,255,255,${labelOp.toFixed(3)})`;
+        ctx2.fillStyle = active ? "#f87171" : `rgba(255,255,255,${labelOp.toFixed(3)})`;
         ctx2.textAlign = "center";
         ctx2.fillText(text, mx, my + 4);
       }
@@ -509,7 +518,7 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       const cycle = PARTICLE_TRAVEL + PARTICLE_REST;
       const rBase = (active ? 3.8 : 2.3);
       const op = dimmed ? 0.28 : active ? 1 : 0.55;
-      const rgb = active ? "229,52,42" : "255,255,255";
+      const rgb = active ? "239,68,68" : "255,255,255";
       for (const p of e.particles) {
         const raw = since - e.doneAt + p.phase;
         const cycleIndex = Math.floor(raw / cycle);
@@ -575,17 +584,21 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       ctx2.lineWidth = active ? 1.6 : 1;
       ctx2.strokeStyle = active ? RED : "rgba(40,40,60,.8)";
       ctx2.stroke();
-      drawBrackets(ctx2, x, y, NODE_W, NODE_H, 12, active ? "rgba(229,52,42,.85)" : "rgba(70,70,95,.9)");
+      drawBrackets(ctx2, x, y, NODE_W, NODE_H, 12, active ? "rgba(239,68,68,.85)" : "rgba(70,70,95,.9)");
 
       ctx2.textAlign = "left";
-      ctx2.font = "600 14px 'IBM Plex Mono', ui-monospace, monospace";
+      ctx2.font = "600 14px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillStyle = active ? "#ffcccc" : "#c8c8d0";
       const titled = nd.label.replace(/\b\w/g, (c) => c.toUpperCase());
       const lines = wrapLabel(ctx2, titled, NODE_W - 28);
       lines.forEach((ln, i) => ctx2.fillText(ln, x + 14, y + 20 + i * 16));
-      ctx2.font = "10.5px 'IBM Plex Mono', ui-monospace, monospace";
-      ctx2.fillStyle = "rgba(95,95,118,.9)";
-      ctx2.fillText((nd.domain || "unclassified").toUpperCase(), x + 14, y + 55);
+      // small domain-colored dot + label — the map's "color-coded by domain" cue
+      const dColor = domainColor(nd.domain);
+      ctx2.fillStyle = dColor;
+      ctx2.beginPath(); ctx2.arc(x + 17, y + 51, 3, 0, Math.PI * 2); ctx2.fill();
+      ctx2.font = "10.5px 'JetBrains Mono', ui-monospace, monospace";
+      ctx2.fillStyle = active ? dColor : "rgba(95,95,118,.9)";
+      ctx2.fillText((nd.domain || "unclassified").toUpperCase(), x + 26, y + 55);
 
       if (nd.duplicated) {
         const pulse = reduced ? 0.3 : 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(t / 1100));
@@ -639,9 +652,9 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       ctx2.save();
       ctx2.textAlign = "right";
       ctx2.globalAlpha = op;
-      ctx2.font = "13px 'IBM Plex Mono', ui-monospace, monospace";
+      ctx2.font = "13px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillText("👻", x, y);
-      ctx2.font = "10px 'IBM Plex Mono', ui-monospace, monospace";
+      ctx2.font = "10px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillStyle = "rgba(200,200,215,.9)";
       ctx2.fillText(EGG_HINTS[idx], x - 20, y);
       ctx2.restore();
@@ -656,17 +669,17 @@ export default function ResultsCanvas({ graph, onHoverChange, onSelectChange }) 
       if (el > dur) return;
       const op = el < 300 ? el / 300 : el > dur - 500 ? Math.max(0, (dur - el) / 500) : 1;
       ctx2.save();
-      ctx2.strokeStyle = `rgba(90,230,140,${(op * 0.85).toFixed(3)})`;
+      ctx2.strokeStyle = `rgba(16,185,129,${(op * 0.85).toFixed(3)})`;
       ctx2.lineWidth = 2;
       for (const e of sim.edges) {
         const a = pts[e.aIdx], b = pts[e.bIdx];
         ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(b.x, b.y); ctx2.stroke();
       }
-      ctx2.fillStyle = `rgba(90,230,140,${op.toFixed(3)})`;
+      ctx2.fillStyle = `rgba(16,185,129,${op.toFixed(3)})`;
       ctx2.textAlign = "center";
-      ctx2.font = "700 16px 'IBM Plex Mono', ui-monospace, monospace";
+      ctx2.font = "700 16px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillText("ALL SYSTEMS CONNECTED", cx, cy - 92);
-      ctx2.font = "10px 'IBM Plex Mono', ui-monospace, monospace";
+      ctx2.font = "10px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillText("(for the next couple seconds, anyway)", cx, cy - 74);
       ctx2.restore();
     };
