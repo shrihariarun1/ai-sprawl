@@ -303,7 +303,13 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       reseat();
       const sim = simRef.current;
-      if (sim && !sim.camera) {
+      // keep the camera glued to the true center/fit whenever nothing is
+      // focused — a layout shift (fonts loading, side panel content growing)
+      // resizes the canvas, and a camera frozen from an earlier, different
+      // size drifts away from where world positions now put the cluster.
+      // Once something is selected, leave the camera alone (don't yank the
+      // focused view around under the user).
+      if (sim && !sim.selected) {
         const cx = rect.width / 2, cy = rect.height / 2;
         const z = sim.baseZoom || DEFAULT_ZOOM;
         sim.camera = { fromX: cx, fromY: cy, fromZoom: z, toX: cx, toY: cy, toZoom: z, start: 0, dur: 0 };
@@ -869,6 +875,22 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       drawEggHint(ctx, sim, w, h, t);
     };
 
+    // self-heal the resting camera to the true current center/fit, once any
+    // in-flight tween (e.g. the release animation) has finished — don't rely
+    // solely on resize()/ResizeObserver firing, since a layout shift can
+    // resize the canvas without either ever triggering, silently leaving the
+    // camera glued to a stale center
+    const healCamera = (sim, t) => {
+      const cam = sim.camera;
+      const tweenDone = !cam || t - cam.start >= cam.dur;
+      if (!tweenDone) return;
+      const { w, h } = dims.current;
+      const cx = w / 2, cy = h / 2, z = sim.baseZoom || DEFAULT_ZOOM;
+      if (!cam || cam.toX !== cx || cam.toY !== cy || cam.toZoom !== z) {
+        sim.camera = { fromX: cx, fromY: cy, fromZoom: z, toX: cx, toY: cy, toZoom: z, start: 0, dur: 0 };
+      }
+    };
+
     let running = true;
     const loop = (t) => {
       if (!running) return;
@@ -879,6 +901,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
         if (!sim.selected) {
           const dt = t - (sim.lastStep || t);
           stepPhysics(sim.nodes, sim.relatedPairs, dt);
+          healCamera(sim, t);
         }
         sim.lastStep = t;
       }
@@ -919,7 +942,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
         const sim = simRef.current;
         return {
           R: sim.R, hover: sim.hover, selected: sim.selected,
-          camera: sim.camera, mounted: sim.mounted,
+          camera: sim.camera, mounted: sim.mounted, baseZoom: sim.baseZoom, dims: dims.current,
           edges: sim.edges.map((e) => ({ from: e.from, to: e.to, severity: e.severity, label: e.label })),
           nodes: sim.nodes.map((n) => ({ domain: n.domain, label: n.label, duplicated: n.duplicated, data_touches: n.data_touches, x: n.x, y: n.y, appearAt: n.appearAt })),
         };
@@ -928,11 +951,19 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       window.__voidHit = (wx, wy) => hitTestWorld(wx, wy);
       window.__voidClickAt = (mx, my) => onClick({ clientX: mx + canvas.getBoundingClientRect().left, clientY: my + canvas.getBoundingClientRect().top });
       window.__voidTriggerEgg = () => { const sim = simRef.current; if (sim) sim.eggStart = performance.now(); };
+      window.__voidCorruptCamera = (dx, dy) => {
+        const sim = simRef.current;
+        if (!sim || !sim.camera) return;
+        const c = sim.camera;
+        sim.camera = { ...c, fromX: c.toX + dx, fromY: c.toY + dy, toX: c.toX + dx, toY: c.toY + dy, start: 0, dur: 0 };
+      };
       // manual physics stepper for testing under document.hidden (rAF paused there)
       window.__voidStepN = (n) => {
         const sim = simRef.current;
         if (!sim) return;
-        for (let i = 0; i < (n || 30); i++) if (!sim.selected) stepPhysics(sim.nodes, sim.relatedPairs, 16);
+        for (let i = 0; i < (n || 30); i++) {
+          if (!sim.selected) { stepPhysics(sim.nodes, sim.relatedPairs, 16); healCamera(sim, performance.now()); }
+        }
         draw(performance.now());
       };
     }
