@@ -18,16 +18,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 */
 
 const C = {
-  node: "#ececec",       // off-white settled node
-  orphan: "#f59e0b",     // warning amber — disconnected / singleton island
-  connect: "#10b981",    // success green — earned only on a real connection
-  edgeRGB: "236,236,236",
+  node: "#3A322A",       // dark ink settled node — visible on the warm paper field
+  orphan: "#C97C3D",     // warning amber — disconnected / singleton island
+  connect: "#2A7A7A",    // success teal — earned only on a real connection
+  edgeRGB: "58,53,48",
 };
 const PHRASE = "no shared context";
 
 // ambient shooting stars — purely decorative, phase-independent, so the
-// dark field doesn't read as empty between node interactions
-const STAR_RGB = ["236,236,236", "236,236,236", "236,236,236", "239,68,68", "245,158,11"];
+// paper-colored field doesn't read as empty between node interactions
+const STAR_RGB = ["58,53,48", "58,53,48", "58,53,48", "198,40,40", "201,124,61"];
 
 const AMBIENT = [
   ["fraud detection model", "fraud"],
@@ -382,9 +382,9 @@ export default function SprawlField({
             const isl = nodes.filter((n) => n.k === best).slice(0, 2);
             if (isl.length === 2) {
               ctx.save();
-              ctx.strokeStyle = `rgba(16,185,129,${(0.9 * earnedA).toFixed(3)})`;
+              ctx.strokeStyle = `rgba(42,122,122,${(0.9 * earnedA).toFixed(3)})`;
               ctx.lineWidth = 1.4;
-              ctx.shadowColor = "rgba(16,185,129,0.6)";
+              ctx.shadowColor = "rgba(42,122,122,0.6)";
               ctx.shadowBlur = 10 * earnedA;
               ctx.beginPath();
               ctx.moveTo(isl[0].x, isl[0].y); ctx.lineTo(isl[1].x, isl[1].y); ctx.stroke();

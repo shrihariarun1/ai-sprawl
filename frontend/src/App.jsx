@@ -30,7 +30,7 @@ const PLACEHOLDER_BENCHMARK = {
   avg_problem_domains: 4.2, avg_rebuilt_capabilities: 2.3, avg_independent_data_touches: 14.6,
 };
 
-const CONFETTI_COLORS = ["#ef4444", "#ececec", "#f59e0b"];
+const CONFETTI_COLORS = ["#C62828", "#2A7A7A", "#C97C3D"];
 function spawnConfetti(x, y) {
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   for (let i = 0; i < 26; i++) {
@@ -77,7 +77,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-const STATUS_COLOR = { FRAGMENTED: "#ef4444", CONNECTED: "#10b981" };
+const STATUS_COLOR = { FRAGMENTED: "#C62828", CONNECTED: "#2A7A7A" };
 
 // small decorative node-cluster motif echoing the real fragmentation map —
 // solid lines between connected nodes, one dashed line for the "missing" one
@@ -87,7 +87,7 @@ function drawShareCardMotif(ctx, x, y, accent) {
   const edges = [[0, 1], [1, 2], [3, 4], [0, 4]];
   ctx.save();
   ctx.translate(x, y);
-  ctx.strokeStyle = "rgba(255,255,255,.16)";
+  ctx.strokeStyle = "rgba(26,26,26,.15)";
   ctx.lineWidth = 1.5;
   edges.forEach(([a, b]) => {
     ctx.beginPath();
@@ -105,7 +105,7 @@ function drawShareCardMotif(ctx, x, y, accent) {
   pts.forEach(([px, py], i) => {
     ctx.beginPath();
     ctx.arc(px, py, 6, 0, Math.PI * 2);
-    ctx.fillStyle = i === 2 || i === 3 ? accent : "#c8c8d0";
+    ctx.fillStyle = i === 2 || i === 3 ? accent : "#8A8378";
     ctx.fill();
   });
   ctx.restore();
@@ -127,13 +127,13 @@ async function buildShareCardBlob(diag) {
   const mono = "'JetBrains Mono', ui-monospace, monospace";
   const sans = "'Inter', 'Segoe UI', system-ui, sans-serif";
 
-  const accent = STATUS_COLOR[diag.status] || "#f59e0b";
+  const accent = STATUS_COLOR[diag.status] || "#C97C3D";
 
-  ctx.fillStyle = "#0A0E1A";
+  ctx.fillStyle = "#F5F0E8";
   ctx.fillRect(0, 0, 1200, 630);
 
   // dot-grain texture, matching the site's background treatment
-  ctx.fillStyle = "rgba(255,255,255,.045)";
+  ctx.fillStyle = "rgba(26,26,26,.045)";
   for (let gx = 11; gx < 1200; gx += 22) {
     for (let gy = 11; gy < 630; gy += 22) {
       ctx.beginPath();
@@ -144,23 +144,23 @@ async function buildShareCardBlob(diag) {
 
   // soft corner glow — ambient brand accent, always amber regardless of status
   const glow = ctx.createRadialGradient(120, 60, 0, 120, 60, 520);
-  glow.addColorStop(0, "rgba(245,158,11,.10)");
-  glow.addColorStop(1, "rgba(245,158,11,0)");
+  glow.addColorStop(0, "rgba(201,124,61,.08)");
+  glow.addColorStop(1, "rgba(201,124,61,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 1200, 630);
 
-  ctx.fillStyle = "#f59e0b";
+  ctx.fillStyle = "#C97C3D";
   ctx.fillRect(0, 0, 10, 630);
 
   ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#1A1A1A";
   ctx.font = `700 27px ${sans}`;
   ctx.fillText("Kaara", 72, 92);
-  ctx.fillStyle = "#94a3b8";
+  ctx.fillStyle = "#6B6560";
   ctx.font = `16px ${mono}`;
   ctx.fillText("AI SPRAWL MAP", 180, 92);
 
-  ctx.fillStyle = "#7a7a86";
+  ctx.fillStyle = "#6B6560";
   ctx.font = `13px ${mono}`;
   ctx.fillText(
     `${diag.diagnostic_id} · ${new Date(diag.run_at).toISOString().slice(0, 10)} · ${diag.counts.initiatives} INITIATIVES`,
@@ -178,7 +178,7 @@ async function buildShareCardBlob(diag) {
   ctx.fillStyle = accent;
   ctx.fillText(pillLabel, 72 + 18, 164);
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#1A1A1A";
   ctx.font = `700 46px ${sans}`;
   wrapCanvasText(ctx, HEADLINE_BY_STATUS[diag.status] || "Here's where your AI portfolio stands.", 760)
     .slice(0, 2)
@@ -196,36 +196,36 @@ async function buildShareCardBlob(diag) {
   stats.forEach(([n, label], i) => {
     const x = 72 + i * (tileW + gap);
     roundRectPath(ctx, x, tileY, tileW, tileH, 10);
-    ctx.fillStyle = "rgba(255,255,255,.035)";
+    ctx.fillStyle = "#FFFFFF";
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.strokeStyle = "#E8E2DA";
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.fillStyle = "#ececec";
+    ctx.fillStyle = "#1A1A1A";
     ctx.font = `700 38px ${sans}`;
     ctx.fillText(String(n), x + 20, tileY + 52);
-    ctx.fillStyle = "#8a8a98";
+    ctx.fillStyle = "#6B6560";
     ctx.font = `11px ${mono}`;
     wrapCanvasText(ctx, label, tileW - 40).forEach((l, j) => ctx.fillText(l, x + 20, tileY + 76 + j * 15));
   });
 
   const topFinding = diag.findings.find((f) => f.evidence?.severity === "HIGH") || diag.findings[0];
   if (topFinding) {
-    ctx.fillStyle = "#7a7a86";
+    ctx.fillStyle = "#6B6560";
     ctx.font = `12px ${mono}`;
     ctx.fillText(`TOP FINDING · ${topFinding.type}`, 72, 512);
-    ctx.fillStyle = "#ececec";
+    ctx.fillStyle = "#1A1A1A";
     ctx.font = `600 24px ${sans}`;
     wrapCanvasText(ctx, topFinding.title, 1056).slice(0, 2).forEach((l, j) => ctx.fillText(l, 72, 542 + j * 30));
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,.10)";
+  ctx.strokeStyle = "#E8E2DA";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(72, 596);
   ctx.lineTo(1128, 596);
   ctx.stroke();
-  ctx.fillStyle = "#7a7a86";
+  ctx.fillStyle = "#6B6560";
   ctx.font = `13px ${mono}`;
   ctx.fillText("Mapped with the Kaara AI Sprawl Map — free, in under a minute", 72, 618);
 
@@ -292,9 +292,9 @@ const HINTS = [
 
 // domain -> accent color, mirrors ResultsCanvas.jsx's DOMAIN_COLORS
 const DOMAIN_COLORS = {
-  fraud: "#ef4444", compliance: "#3b82f6", support: "#10b981", lending: "#f59e0b",
-  analytics: "#8b5cf6", identity: "#ec4899", marketing: "#f97316", claims: "#fde047",
-  documents: "#94a3b8", operations: "#06b6d4", security: "#f43f5e", hr: "#a3e635",
+  fraud: "#C62828", compliance: "#2A7A7A", support: "#2A7A7A", lending: "#C97C3D",
+  analytics: "#8B5CF6", identity: "#EC4899", marketing: "#F97316", claims: "#A0752A",
+  documents: "#5B7B8C", operations: "#0891A8", security: "#C2185B", hr: "#6B8E23",
 };
 
 function domainOf(label) {
@@ -738,7 +738,7 @@ export default function App() {
                 <div className="chips">
                   {domains.map((d) => (
                     <span className="chip" key={d}>
-                      <i className="chip-dot" style={{ background: DOMAIN_COLORS[d] || "#94a3b8" }} />
+                      <i className="chip-dot" style={{ background: DOMAIN_COLORS[d] || "#8A8378" }} />
                       {d.toUpperCase()}
                     </span>
                   ))}
@@ -1016,7 +1016,7 @@ export default function App() {
                 return (
                   <div className={"project-card" + (expanded ? " expanded" : "")} key={p.label}>
                     <div className="card-header" onClick={() => setExpandedCard(expanded ? -1 : i)}>
-                      <span className="chip-dot" style={{ background: DOMAIN_COLORS[p.domain] || "#94a3b8" }} />
+                      <span className="chip-dot" style={{ background: DOMAIN_COLORS[p.domain] || "#8A8378" }} />
                       <span className="card-name">{toTitleCase(p.label)}</span>
                       <span className="card-domain-label">{p.domain.toUpperCase()}</span>
                       <span className={"severity-badge severity-" + p.severity}>{p.severity}</span>

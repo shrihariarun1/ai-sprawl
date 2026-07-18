@@ -116,14 +116,14 @@ def get_badge(diagnostic_id: str):
     diag = json.loads(row["payload"])
     score = diag.get("sprawl_score", {})
     value = score.get("score", 0)
-    color = score.get("color", "#94A3B8")
+    color = score.get("color", "#6B6560")
     suffix_x = 16 + len(str(value)) * 14 + 6
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56">
-  <rect width="220" height="56" rx="8" fill="#0A0E1A" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <text x="16" y="22" font-family="Inter, sans-serif" font-size="10" letter-spacing="1" fill="#94A3B8">AI SPRAWL SCORE</text>
+  <rect width="220" height="56" rx="8" fill="#FFFFFF" stroke="#E8E2DA" stroke-width="1"/>
+  <text x="16" y="22" font-family="Inter, sans-serif" font-size="10" letter-spacing="1" fill="#6B6560">AI SPRAWL SCORE</text>
   <text x="16" y="44" font-family="JetBrains Mono, monospace" font-size="22" font-weight="700" fill="{color}">{value}</text>
-  <text x="{suffix_x}" y="44" font-family="Inter, sans-serif" font-size="13" fill="rgba(255,255,255,0.35)">/ 100</text>
+  <text x="{suffix_x}" y="44" font-family="Inter, sans-serif" font-size="13" fill="#A69F98">/ 100</text>
 </svg>"""
     return Response(content=svg, media_type="image/svg+xml")
 
@@ -186,11 +186,11 @@ def _brief_html(diag):
 <style>
 body {{ font-family: Georgia, 'Times New Roman', serif; color:#1a1a1a; margin:48px 56px; line-height:1.5; }}
 .mono {{ font-family: ui-monospace, 'Courier New', monospace; letter-spacing:1.5px; font-size:11px; color:#888; }}
-.head {{ border-bottom:3px solid #E5342A; padding-bottom:14px; margin-bottom:28px; }}
-.brand {{ color:#E5342A; font-weight:bold; font-size:22px; font-family:system-ui,sans-serif; }}
+.head {{ border-bottom:3px solid #C62828; padding-bottom:14px; margin-bottom:28px; }}
+.brand {{ color:#C62828; font-weight:bold; font-size:22px; font-family:system-ui,sans-serif; }}
 h1 {{ font-size:26px; margin:24px 0 6px; }}
-.status {{ color:#E5342A; font-weight:bold; }}
-.obs {{ border-left:3px solid #E5342A; background:#faf5f4; padding:14px 18px; margin:22px 0; }}
+.status {{ color:#C62828; font-weight:bold; }}
+.obs {{ border-left:3px solid #C62828; background:#faf5f4; padding:14px 18px; margin:22px 0; }}
 table.stats {{ width:100%; border-collapse:collapse; margin:26px 0; }}
 table.stats td {{ border:1px solid #ddd; padding:14px 16px; width:25%; }}
 .n {{ font-size:34px; font-weight:bold; font-family:system-ui,sans-serif; }}

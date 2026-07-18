@@ -318,9 +318,9 @@ def derive(items):
 
 
 SCORE_LEVELS = [
-    (70, "Critical Fragmentation", "#EF4444"),
-    (40, "Moderate Fragmentation", "#F59E0B"),
-    (0, "Low Fragmentation", "#10B981"),
+    (70, "Critical Fragmentation", "#C62828"),
+    (40, "Moderate Fragmentation", "#C97C3D"),
+    (0, "Low Fragmentation", "#2A7A7A"),
 ]
 
 

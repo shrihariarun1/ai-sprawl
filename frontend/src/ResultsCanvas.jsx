@@ -21,18 +21,19 @@ import { useEffect, useRef, useState } from "react";
   there is only ever one source of truth for "where is everything right now."
 */
 
-const RED = "#ef4444";
-const GREEN = "#10b981";
-const AMBER = (a) => `rgba(245,158,11,${a})`;
-const RED_A = (a) => `rgba(239,68,68,${a})`;
+const RED = "#C62828";
+const GREEN = "#2A7A7A";
+const AMBER = (a) => `rgba(201,124,61,${a})`;
+const RED_A = (a) => `rgba(198,40,40,${a})`;
+const INK = (a) => `rgba(26,26,26,${a})`;   // dark ink — the "calm/neutral" tone on paper
 
-// domain -> node accent color, matching the diagnostic-dashboard palette
+// domain -> node accent color, matching the warm consultancy-report palette
 const DOMAIN_COLORS = {
-  fraud: "#ef4444", compliance: "#3b82f6", support: "#10b981", lending: "#f59e0b",
-  analytics: "#8b5cf6", identity: "#ec4899", marketing: "#f97316", claims: "#fde047",
-  documents: "#94a3b8", operations: "#06b6d4", security: "#f43f5e", hr: "#a3e635",
+  fraud: "#C62828", compliance: "#2A7A7A", support: "#2A7A7A", lending: "#C97C3D",
+  analytics: "#8B5CF6", identity: "#EC4899", marketing: "#F97316", claims: "#A0752A",
+  documents: "#5B7B8C", operations: "#0891A8", security: "#C2185B", hr: "#6B8E23",
 };
-const domainColor = (d) => DOMAIN_COLORS[d] || "#94a3b8";
+const domainColor = (d) => DOMAIN_COLORS[d] || "#8A8378";
 
 const NODE_W = 220, NODE_H = 70, CHAMFER = 8;
 const PARTICLES_PER_EDGE = 4;
@@ -272,9 +273,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       for (let x = 0; x < w; x += 22) {
         for (let y = 0; y < h; y += 22) {
           const d = Math.hypot(x - cx, y - cy) / maxDist;
-          const a = Math.max(0, 0.16 * (1 - d * 1.05));
+          const a = Math.max(0, 0.09 * (1 - d * 1.05));
           if (a <= 0.002) continue;
-          octx.fillStyle = `rgba(150,150,190,${a.toFixed(3)})`;
+          octx.fillStyle = `rgba(58,53,48,${a.toFixed(3)})`;
           octx.beginPath(); octx.arc(x, y, 0.7, 0, Math.PI * 2); octx.fill();
         }
       }
@@ -498,26 +499,26 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
           const r = innerR + phase * 44;
           const a = (1 - phase) * 0.22;
           if (a <= 0.005) continue;
-          ctx2.strokeStyle = `rgba(239,68,68,${a.toFixed(3)})`;
+          ctx2.strokeStyle = `rgba(198,40,40,${a.toFixed(3)})`;
           ctx2.lineWidth = 1;
           ctx2.beginPath(); ctx2.arc(cx, cy, r, 0, Math.PI * 2); ctx2.stroke();
         }
       } else {
-        ctx2.strokeStyle = "rgba(239,68,68,.14)";
+        ctx2.strokeStyle = "rgba(198,40,40,.14)";
         ctx2.lineWidth = 1;
         ctx2.beginPath(); ctx2.arc(cx, cy, innerR + 20, 0, Math.PI * 2); ctx2.stroke();
       }
 
-      ctx2.fillStyle = "#04020a";
+      ctx2.fillStyle = "#1A1A1A";
       ctx2.beginPath(); ctx2.arc(cx, cy, innerR, 0, Math.PI * 2); ctx2.fill();
       ctx2.setLineDash([3, 4]);
-      ctx2.strokeStyle = "rgba(239,68,68,.3)";
+      ctx2.strokeStyle = "rgba(198,40,40,.3)";
       ctx2.lineWidth = 1;
       ctx2.beginPath(); ctx2.arc(cx, cy, innerR, 0, Math.PI * 2); ctx2.stroke();
       ctx2.setLineDash([]);
 
       if (born > 0.6) {
-        ctx2.fillStyle = "rgba(239,68,68,.9)";
+        ctx2.fillStyle = "rgba(198,40,40,.9)";
         ctx2.font = "9px 'JetBrains Mono', ui-monospace, monospace";
         ctx2.textAlign = "center";
         ctx2.fillText("NO SHARED", cx, cy - 4);
@@ -530,7 +531,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     // Purely a re-paint of the real missing edges, not new data.
     const drawEdgePotential = (ctx2, a, b, active, dimmed) => {
       const op = dimmed ? 0.3 : active ? 1 : 0.6;
-      ctx2.strokeStyle = `rgba(16,185,129,${op.toFixed(3)})`;
+      ctx2.strokeStyle = `rgba(42,122,122,${op.toFixed(3)})`;
       ctx2.lineWidth = active ? 2.2 : 1.4;
       ctx2.setLineDash([2, 5]);
       ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(b.x, b.y); ctx2.stroke();
@@ -541,9 +542,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx2.font = "9.5px 'JetBrains Mono', ui-monospace, monospace";
       const text = "could connect";
       const tw = ctx2.measureText(text).width;
-      ctx2.fillStyle = "#000";
+      ctx2.fillStyle = "#F5F0E8";
       ctx2.fillRect(mx - tw / 2 - 7, my - 10, tw + 14, 18);
-      ctx2.fillStyle = active ? "#34d399" : `rgba(16,185,129,${labelOp.toFixed(3)})`;
+      ctx2.fillStyle = active ? "#3A9A9A" : `rgba(42,122,122,${labelOp.toFixed(3)})`;
       ctx2.textAlign = "center";
       ctx2.fillText(text, mx, my + 4);
     };
@@ -551,9 +552,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
     // severity -> base (non-focused) line treatment. HIGH reads as urgent
     // even before you hover it; MEDIUM/LOW step down in weight and alarm.
     const SEVERITY_STYLE = {
-      HIGH: { rgb: "239,68,68", width: 2.4, dash: [5, 4], pulse: true },
-      MEDIUM: { rgb: "245,158,11", width: 1.6, dash: [6, 5], pulse: false },
-      LOW: { rgb: "255,255,255", width: 1, dash: [1.5, 4], pulse: false },
+      HIGH: { rgb: "198,40,40", width: 2.4, dash: [5, 4], pulse: true },
+      MEDIUM: { rgb: "201,124,61", width: 1.6, dash: [6, 5], pulse: false },
+      LOW: { rgb: "166,159,152", width: 1, dash: [1.5, 4], pulse: false },
     };
 
     // ── one missing edge: dashed reveal, gap wash, particle pool ──
@@ -578,7 +579,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       // default/dimmed lines read at the edge's own severity weight; red is
       // reserved for the one you're actually focused on right now, same as
       // the active node border — active always overrides severity styling
-      const lineRGB = active ? "239,68,68" : style.rgb;
+      const lineRGB = active ? "198,40,40" : style.rgb;
       const width = active ? 2.4 : style.width;
       const pulse = active ? true : style.pulse;
       const pulseMul = pulse && !reduced ? 0.75 + 0.25 * Math.sin(t / 420) : 1;
@@ -609,9 +610,9 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
         ctx2.font = "9.5px 'JetBrains Mono', ui-monospace, monospace";
         const text = e.label;
         const tw = ctx2.measureText(text).width;
-        ctx2.fillStyle = "#000";
+        ctx2.fillStyle = "#F5F0E8";
         ctx2.fillRect(mx - tw / 2 - 7, my - 10, tw + 14, 18);
-        ctx2.fillStyle = active ? "#f87171" : `rgba(255,255,255,${labelOp.toFixed(3)})`;
+        ctx2.fillStyle = active ? "#C62828" : `rgba(26,26,26,${labelOp.toFixed(3)})`;
         ctx2.textAlign = "center";
         ctx2.fillText(text, mx, my + 4);
       }
@@ -621,7 +622,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       const cycle = PARTICLE_TRAVEL + PARTICLE_REST;
       const rBase = (active ? 3.8 : 2.3);
       const op = dimmed ? 0.28 : active ? 1 : 0.55;
-      const rgb = active ? "239,68,68" : (SEVERITY_STYLE[e.severity] || SEVERITY_STYLE.MEDIUM).rgb;
+      const rgb = active ? "198,40,40" : (SEVERITY_STYLE[e.severity] || SEVERITY_STYLE.MEDIUM).rgb;
       for (const p of e.particles) {
         const raw = since - e.doneAt + p.phase;
         const cycleIndex = Math.floor(raw / cycle);
@@ -701,28 +702,33 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
         ctx2.stroke();
       }
 
+      const dColor = domainColor(nd.domain);
       chamferPath(ctx2, x, y, NODE_W, NODE_H, CHAMFER);
-      ctx2.fillStyle = "#000";
+      ctx2.save();
+      ctx2.shadowColor = "rgba(26,26,26,.10)";
+      ctx2.shadowBlur = 12;
+      ctx2.shadowOffsetY = 3;
+      ctx2.fillStyle = "#FFFFFF";
       ctx2.fill();
-      // critical nodes get a bolder border regardless of focus — importance
-      // should read even when nothing is hovered
-      ctx2.lineWidth = active ? 1.6 : critical ? 1.3 : 1;
-      ctx2.strokeStyle = active ? RED : "rgba(40,40,60,.8)";
+      ctx2.restore();
+      // white card, domain-colored border — bolder + red once focused;
+      // critical nodes keep a slightly bolder border even unfocused
+      ctx2.lineWidth = active ? 2.8 : critical ? 2.6 : 2.5;
+      ctx2.strokeStyle = active ? RED : dColor;
       ctx2.stroke();
-      drawBrackets(ctx2, x, y, NODE_W, NODE_H, 12, active ? "rgba(239,68,68,.85)" : "rgba(70,70,95,.9)");
+      drawBrackets(ctx2, x, y, NODE_W, NODE_H, 12, active ? "rgba(198,40,40,.85)" : "rgba(166,159,152,.6)");
 
       ctx2.textAlign = "left";
       ctx2.font = "600 14px 'JetBrains Mono', ui-monospace, monospace";
-      ctx2.fillStyle = active ? "#ffcccc" : "#c8c8d0";
+      ctx2.fillStyle = "#1A1A1A";
       const titled = nd.label.replace(/\b\w/g, (c) => c.toUpperCase());
       const lines = wrapLabel(ctx2, titled, NODE_W - 28);
       lines.forEach((ln, i) => ctx2.fillText(ln, x + 14, y + 20 + i * 16));
       // small domain-colored dot + label — the map's "color-coded by domain" cue
-      const dColor = domainColor(nd.domain);
       ctx2.fillStyle = dColor;
       ctx2.beginPath(); ctx2.arc(x + 17, y + 51, 3, 0, Math.PI * 2); ctx2.fill();
       ctx2.font = "10.5px 'JetBrains Mono', ui-monospace, monospace";
-      ctx2.fillStyle = active ? dColor : "rgba(95,95,118,.9)";
+      ctx2.fillStyle = dColor;
       ctx2.fillText((nd.domain || "unclassified").toUpperCase(), x + 26, y + 55);
 
       if (nd.duplicated) {
@@ -744,14 +750,14 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       const hubD = Math.hypot(world.x - cx, world.y - cy);
       const hubOp = Math.pow(clamp01(1 - hubD / maxDist), 1.6) * 0.3;
       if (hubOp > 0.012) {
-        ctx2.strokeStyle = `rgba(255,255,255,${hubOp.toFixed(3)})`;
+        ctx2.strokeStyle = `rgba(26,26,26,${hubOp.toFixed(3)})`;
         ctx2.beginPath(); ctx2.moveTo(world.x, world.y); ctx2.lineTo(cx, cy); ctx2.stroke();
       }
       for (const p of pts) {
         const d = Math.hypot(world.x - p.x, world.y - p.y);
         const op = Math.pow(clamp01(1 - d / maxDist), 1.6) * 0.38;
         if (op <= 0.012) continue;
-        ctx2.strokeStyle = `rgba(255,255,255,${op.toFixed(3)})`;
+        ctx2.strokeStyle = `rgba(26,26,26,${op.toFixed(3)})`;
         ctx2.beginPath(); ctx2.moveTo(world.x, world.y); ctx2.lineTo(p.x, p.y); ctx2.stroke();
       }
     };
@@ -780,7 +786,7 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       ctx2.font = "13px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillText("👻", x, y);
       ctx2.font = "10px 'JetBrains Mono', ui-monospace, monospace";
-      ctx2.fillStyle = "rgba(200,200,215,.9)";
+      ctx2.fillStyle = "rgba(58,53,48,.9)";
       ctx2.fillText(EGG_HINTS[idx], x - 20, y);
       ctx2.restore();
     };
@@ -794,13 +800,13 @@ export default function ResultsCanvas({ graph, mode = "chaos", onHoverChange, on
       if (el > dur) return;
       const op = el < 300 ? el / 300 : el > dur - 500 ? Math.max(0, (dur - el) / 500) : 1;
       ctx2.save();
-      ctx2.strokeStyle = `rgba(16,185,129,${(op * 0.85).toFixed(3)})`;
+      ctx2.strokeStyle = `rgba(42,122,122,${(op * 0.85).toFixed(3)})`;
       ctx2.lineWidth = 2;
       for (const e of sim.edges) {
         const a = pts[e.aIdx], b = pts[e.bIdx];
         ctx2.beginPath(); ctx2.moveTo(a.x, a.y); ctx2.lineTo(b.x, b.y); ctx2.stroke();
       }
-      ctx2.fillStyle = `rgba(16,185,129,${op.toFixed(3)})`;
+      ctx2.fillStyle = `rgba(42,122,122,${op.toFixed(3)})`;
       ctx2.textAlign = "center";
       ctx2.font = "700 16px 'JetBrains Mono', ui-monospace, monospace";
       ctx2.fillText("ALL SYSTEMS CONNECTED", cx, cy - 92);
